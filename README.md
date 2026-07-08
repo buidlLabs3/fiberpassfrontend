@@ -1,20 +1,76 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# FiberPass Frontend
 
-# Run and deploy your AI Studio app
+FiberPass is a wallet dapp for prepaid, revocable Fiber Network payment sessions.
 
-This contains everything you need to run your app locally.
+Instead of asking users to approve every tiny payment, FiberPass lets a user approve one spending pass for an app. The app can then charge small amounts within the user-defined limit until the pass is paused, revoked, expired, depleted, topped up, closed, or settled.
 
-View your app in AI Studio: https://ai.studio/apps/9a336616-f0ed-4210-8eeb-d3e34abd8456
+## What This App Does
 
-## Run Locally
+- Connects a wallet with JoyID authentication.
+- Creates prepaid payment session passes for apps.
+- Shows active session limits, spend, and remaining balance.
+- Lets users top up, pause, resume, and revoke sessions.
+- Streams live spend updates from the backend API.
+- Shows historical settled, revoked, and expired sessions.
 
-**Prerequisites:**  Node.js
+## Product Goal
 
+FiberPass makes Fiber Network micropayments usable for real apps:
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+> Approve once, pay continuously within limits.
+
+The target use cases include AI agents, API services, RPC access, media streaming, decentralized storage, and any app that needs low-friction repeated micropayments.
+
+## Current Stack
+
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- JoyID EVM SDK
+- FiberPass backend API
+
+## Local Development
+
+Prerequisites:
+
+- Node.js
+- Running FiberPass backend API
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Create a local env file:
+
+```bash
+cp .env.example .env.local
+```
+
+Run the frontend:
+
+```bash
+npm run dev
+```
+
+Default local URL:
+
+```text
+http://localhost:3000
+```
+
+## Environment
+
+```text
+VITE_API_URL=http://localhost:4000
+VITE_FIBER_NETWORK_NAME="Fiber Network Testnet"
+VITE_FIBER_CHAIN_ID=
+VITE_JOYID_APP_URL=
+VITE_JOYID_SERVER_URL=
+```
+
+## Status
+
+This frontend is an early product implementation. JoyID auth and backend session APIs are wired, but real Fiber Network payment/session integration is still in progress.

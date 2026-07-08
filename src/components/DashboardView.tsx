@@ -18,7 +18,8 @@ import {
   Pause,
   Trash2,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { Session } from '../types';
 
@@ -26,6 +27,7 @@ interface DashboardViewProps {
   activeSessions: Session[];
   walletBalance: number;
   totalActivePassValue: number;
+  isLoading?: boolean;
   onTopUpSession: (id: string) => void;
   onTogglePauseSession: (id: string) => void;
   onRevokeSession: (id: string) => void;
@@ -36,6 +38,7 @@ export default function DashboardView({
   activeSessions,
   walletBalance,
   totalActivePassValue,
+  isLoading = false,
   onTopUpSession,
   onTogglePauseSession,
   onRevokeSession,
@@ -113,7 +116,17 @@ export default function DashboardView({
           </span>
         </div>
 
-        {activeSessions.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center text-center p-12 bg-surface-container-low/40 backdrop-blur-md rounded-2xl border border-outline-variant max-w-xl mx-auto w-full my-8 space-y-4">
+            <RefreshCw className="w-10 h-10 text-primary animate-spin" />
+            <div className="space-y-1">
+              <h3 className="font-bold text-lg text-on-surface">Loading Sessions</h3>
+              <p className="text-sm text-on-surface-variant max-w-xs">
+                Fetching your authenticated FiberPass state.
+              </p>
+            </div>
+          </div>
+        ) : activeSessions.length === 0 ? (
           /* Empty State */
           <div className="flex flex-col items-center justify-center text-center p-12 bg-surface-container-low/40 backdrop-blur-md rounded-2xl border border-outline-variant border-dashed max-w-xl mx-auto w-full my-8 space-y-4">
             <AlertCircle className="w-12 h-12 text-outline-variant" />

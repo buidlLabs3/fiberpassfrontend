@@ -20,15 +20,17 @@ import {
   Clock,
   ExternalLink,
   Receipt,
-  FileSpreadsheet
+  FileSpreadsheet,
+  RefreshCw
 } from 'lucide-react';
 import { Session } from '../types';
 
 interface HistoryViewProps {
   historySessions: Session[];
+  isLoading?: boolean;
 }
 
-export default function HistoryView({ historySessions }: HistoryViewProps) {
+export default function HistoryView({ historySessions, isLoading = false }: HistoryViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSessionId, setSelectedSessionId] = useState<string>(
     historySessions[0]?.id || ''
@@ -173,9 +175,14 @@ export default function HistoryView({ historySessions }: HistoryViewProps) {
 
           {/* Table Container */}
           <div className="overflow-x-auto flex-grow">
-            {filteredSessions.length === 0 ? (
+            {isLoading ? (
+              <div className="p-12 text-center text-on-surface-variant text-sm flex flex-col items-center gap-3">
+                <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+                Loading session history...
+              </div>
+            ) : filteredSessions.length === 0 ? (
               <div className="p-12 text-center text-on-surface-variant text-sm">
-                No matching sessions found. Try clearing your filters or search terms.
+                {historySessions.length === 0 ? 'No session history yet.' : 'No matching sessions found. Try clearing your filters or search terms.'}
               </div>
             ) : (
               <table className="w-full text-left border-collapse min-w-[500px]">
@@ -237,7 +244,14 @@ export default function HistoryView({ historySessions }: HistoryViewProps) {
         </div>
 
         {/* Right Side: Detailed View Panel (Spans 1 column) */}
-        {selectedSession ? (
+        {isLoading ? (
+          <div className="xl:col-span-1 bg-surface-container-low/50 backdrop-blur-md rounded-2xl border border-outline-variant/60 p-6 flex flex-col justify-center items-center h-full min-h-[400px]">
+            <RefreshCw className="w-10 h-10 text-primary mb-3 animate-spin" />
+            <p className="text-sm text-on-surface-variant font-medium text-center">
+              Loading ledger details...
+            </p>
+          </div>
+        ) : selectedSession ? (
           <div className="xl:col-span-1 bg-surface-container-low/50 backdrop-blur-md rounded-2xl border border-primary/20 relative overflow-hidden flex flex-col h-full shadow-lg">
             {/* Upper Blue Gradient Mask */}
             <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none" />

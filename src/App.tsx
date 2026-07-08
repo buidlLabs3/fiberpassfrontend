@@ -23,13 +23,10 @@ import {
   Sliders
 } from 'lucide-react';
 
-import { Session, WalletState } from './types';
-import { fiberPassApi, SessionsOverview } from './lib/api';
+import { WalletState } from './types';
+import { fiberPassApi, getApiErrorMessage, type CreateSessionPayload } from './lib/api';
 import { connectJoyIdWallet, disconnectJoyIdWallet, getStoredJoyIdAddress, signJoyIdMessage } from './lib/joyid';
-import { 
-  INITIAL_ACTIVE_SESSIONS, 
-  INITIAL_HISTORY_SESSIONS 
-} from './data/initialData';
+import { useSessionsOverview } from './hooks/useSessionsOverview';
 
 // Subcomponents imports
 import LandingPage from './components/LandingPage';
@@ -52,12 +49,13 @@ export default function App() {
     currency: 'USDC'
   });
 
-  // Sessions list states
-  const [activeSessions, setActiveSessions] = useState<Session[]>(INITIAL_ACTIVE_SESSIONS);
-  const [historySessions, setHistorySessions] = useState<Session[]>(INITIAL_HISTORY_SESSIONS);
-
   const [apiError, setApiError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+  const [createSessionLoading, setCreateSessionLoading] = useState(false);
+
+  const sessions = useSessionsOverview(currentView === 'app' && wallet.connected);
+  const activeSessions = sessions.activeSessions;
+  const historySessions = sessions.historySessions;
 
   // Settings view details
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
@@ -65,18 +63,18 @@ export default function App() {
   const [gasThreshold, setGasThreshold] = useState('15 gwei');
   const [autoSettleTime, setAutoSettleTime] = useState('2 hours');
 
-  const applyOverview = (overview: SessionsOverview) => {
+  useEffect(() => {
+    if (!sessions.overview) return;
+
     setWallet(prev => ({
-      ...overview.wallet,
-      connected: prev.connected || overview.wallet.connected
+      ...sessions.overview.wallet,
+      connected: prev.connected || sessions.overview.wallet.connected
     }));
-    setActiveSessions(overview.activeSessions);
-    setHistorySessions(overview.historySessions);
     setApiError('');
-  };
+  }, [sessions.overview]);
 
   const handleApiError = (error: unknown) => {
-    const message = error instanceof Error ? error.message : 'FiberPass API request failed.';
+    const message = getApiErrorMessage(error);
     setApiError(message);
     alert(message);
   };
@@ -99,12 +97,14 @@ export default function App() {
       });
 
       fiberPassApi.setAuthToken(auth.token);
+      sessions.clear();
       setWallet(auth.wallet);
       return true;
     } catch (error) {
       disconnectJoyIdWallet();
       fiberPassApi.clearAuthToken();
-      const message = error instanceof Error ? error.message : 'JoyID authentication failed.';
+      sessions.clear();
+      const message = getApiErrorMessage(error, 'JoyID authentication failed.');
       setApiError(message);
       alert(message);
       return false;
@@ -151,6 +151,7 @@ export default function App() {
         disconnectJoyIdWallet();
         if (isMounted) {
           setWallet(prev => ({ ...prev, connected: false, address: '' }));
+          sessions.clear();
         }
       });
 
@@ -168,28 +169,22 @@ export default function App() {
   }, [activeSessions]);
 
   // Create a new session
-  const handleCreateSession = async (sessionData: {
-    name: string;
-    serviceAddress: string;
-    limit: number;
-    currency: string;
-    duration: string;
-    expiryTime: string;
-    autoMicroCharges: boolean;
-    singleUse: boolean;
-    iconType: 'cloud' | 'code' | 'database' | 'cpu' | 'ai' | 'video' | 'rpc';
-  }) => {
+  const handleCreateSession = async (sessionData: CreateSessionPayload) => {
+    setCreateSessionLoading(true);
     try {
-      applyOverview(await fiberPassApi.createSession(sessionData));
+      await sessions.createSession(sessionData);
     } catch (error) {
       handleApiError(error);
+      throw error;
+    } finally {
+      setCreateSessionLoading(false);
     }
   };
 
   // Top Up an active session (Allocate +$1.00)
   const handleTopUpSession = async (id: string) => {
     try {
-      applyOverview(await fiberPassApi.topUpSession(id, 1));
+      await sessions.topUpSession(id, 1);
     } catch (error) {
       handleApiError(error);
     }
@@ -198,7 +193,7 @@ export default function App() {
   // Pause / Resume continuous billing triggers
   const handleTogglePauseSession = async (id: string) => {
     try {
-      applyOverview(await fiberPassApi.togglePauseSession(id));
+      await sessions.togglePauseSession(id);
     } catch (error) {
       handleApiError(error);
     }
@@ -207,46 +202,13 @@ export default function App() {
   // Revoke session completely (instantly terminates, remaining balance settled back to wallet)
   const handleRevokeSession = async (id: string) => {
     try {
-      applyOverview(await fiberPassApi.revokeSession(id));
+      await sessions.revokeSession(id);
     } catch (error) {
       handleApiError(error);
     }
   };
 
-  // Load API state and stream live micropayment updates
-  useEffect(() => {
-    if (currentView !== 'app' || !fiberPassApi.getAuthToken()) return;
-
-    let isMounted = true;
-
-    const syncSessions = async () => {
-      try {
-        const overview = await fiberPassApi.getSessions();
-        if (isMounted) applyOverview(overview);
-      } catch (error) {
-        if (isMounted) {
-          const message = error instanceof Error ? error.message : 'FiberPass API is unavailable.';
-          setApiError(message);
-        }
-      }
-    };
-
-    syncSessions();
-
-    const source = fiberPassApi.openSessionEvents(
-      (overview) => {
-        if (isMounted) applyOverview(overview);
-      },
-      () => {
-        if (isMounted) setApiError('Live updates disconnected. Reconnecting...');
-      }
-    );
-
-    return () => {
-      isMounted = false;
-      source.close();
-    };
-  }, [currentView]);
+  const visibleError = apiError || sessions.error;
 
   return (
     <div className="bg-background text-on-background min-h-screen">
@@ -279,9 +241,9 @@ export default function App() {
 
           {/* Main Context Stage */}
           <main className="flex-grow pt-24 pb-24 md:py-8 px-6 md:pl-72 max-w-7xl mx-auto w-full flex flex-col">
-            {apiError && (
+            {visibleError && (
               <div className="mb-4 rounded-lg border border-error/30 bg-error/10 px-4 py-2 text-xs font-semibold text-error">
-                {apiError}
+                {visibleError}
               </div>
             )}
             
@@ -291,6 +253,7 @@ export default function App() {
                 activeSessions={activeSessions}
                 walletBalance={wallet.balance}
                 totalActivePassValue={totalActivePassValue}
+                isLoading={sessions.isLoading}
                 onTopUpSession={handleTopUpSession}
                 onTogglePauseSession={handleTogglePauseSession}
                 onRevokeSession={handleRevokeSession}
@@ -300,7 +263,7 @@ export default function App() {
 
             {/* Session History Tab */}
             {activeTab === 'history' && (
-              <HistoryView historySessions={historySessions} />
+              <HistoryView historySessions={historySessions} isLoading={sessions.isLoading} />
             )}
 
             {/* Custom Settings Tab */}
@@ -441,6 +404,7 @@ export default function App() {
             onClose={() => setIsModalOpen(false)}
             onCreateSession={handleCreateSession}
             walletBalance={wallet.balance}
+            isSubmitting={createSessionLoading}
           />
 
         </div>

@@ -11,7 +11,8 @@ import {
   HelpCircle, 
   ArrowRight,
   TrendingUp,
-  Coins
+  Coins,
+  LoaderCircle
 } from 'lucide-react';
 import { Session } from '../types';
 
@@ -28,15 +29,17 @@ interface CreateSessionModalProps {
     autoMicroCharges: boolean;
     singleUse: boolean;
     iconType: 'cloud' | 'code' | 'database' | 'cpu' | 'ai' | 'video' | 'rpc';
-  }) => void;
+  }) => void | Promise<void>;
   walletBalance: number;
+  isSubmitting?: boolean;
 }
 
 export default function CreateSessionModal({
   isOpen,
   onClose,
   onCreateSession,
-  walletBalance
+  walletBalance,
+  isSubmitting = false
 }: CreateSessionModalProps) {
   const [serviceName, setServiceName] = useState('');
   const [serviceAddress, setServiceAddress] = useState('');
@@ -85,8 +88,9 @@ export default function CreateSessionModal({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage('');
 
     // Form validation
@@ -134,20 +138,22 @@ export default function CreateSessionModal({
     else if (lowerName.includes('video') || lowerName.includes('stream') || lowerName.includes('media')) iconType = 'video';
     else iconType = iconTypes[Math.floor(Math.random() * iconTypes.length)];
 
-    // Trigger parent callback
-    onCreateSession({
-      name: serviceName.trim(),
-      serviceAddress: serviceAddress.trim(),
-      limit: limitNum,
-      currency,
-      duration: getExpiryDisplay().replace(/\s+/g, '').toLowerCase(),
-      expiryTime: getExpiryDisplay(),
-      autoMicroCharges,
-      singleUse,
-      iconType
-    });
-
-    onClose();
+    try {
+      await onCreateSession({
+        name: serviceName.trim(),
+        serviceAddress: serviceAddress.trim(),
+        limit: limitNum,
+        currency,
+        duration: getExpiryDisplay().replace(/\s+/g, '').toLowerCase(),
+        expiryTime: getExpiryDisplay(),
+        autoMicroCharges,
+        singleUse,
+        iconType
+      });
+      onClose();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not create FiberPass session.');
+    }
   };
 
   return (
@@ -401,16 +407,18 @@ export default function CreateSessionModal({
             <button 
               type="button" 
               onClick={onClose}
-              className="flex-1 bg-surface border border-outline hover:border-white text-on-surface-variant hover:text-white transition-colors py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer"
+              disabled={isSubmitting}
+              className="flex-1 bg-surface border border-outline hover:border-white text-on-surface-variant hover:text-white transition-colors py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button 
               type="submit"
-              className="flex-1 bg-primary text-on-primary hover:bg-primary-fixed py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 hover:shadow-[0_0_20px_rgba(176,198,255,0.25)] transition-all cursor-pointer"
+              disabled={isSubmitting}
+              className="flex-1 bg-primary text-on-primary hover:bg-primary-fixed py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 hover:shadow-[0_0_20px_rgba(176,198,255,0.25)] transition-all cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              <span>Create FiberPass</span>
-              <ArrowRight className="w-4 h-4" />
+              <span>{isSubmitting ? 'Creating...' : 'Create FiberPass'}</span>
+              {isSubmitting ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
             </button>
           </div>
           

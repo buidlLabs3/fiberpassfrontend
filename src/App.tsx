@@ -52,6 +52,7 @@ export default function App() {
   const [apiError, setApiError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [createSessionLoading, setCreateSessionLoading] = useState(false);
+  const [pendingSessionAction, setPendingSessionAction] = useState<{ id: string; action: 'top-up' | 'pause' | 'revoke' | 'close' } | null>(null);
 
   const sessions = useSessionsOverview(currentView === 'app' && wallet.connected);
   const activeSessions = sessions.activeSessions;
@@ -181,31 +182,40 @@ export default function App() {
     }
   };
 
-  // Top Up an active session (Allocate +$1.00)
-  const handleTopUpSession = async (id: string) => {
+  const runSessionAction = async (
+    id: string,
+    action: 'top-up' | 'pause' | 'revoke' | 'close',
+    operation: () => Promise<unknown>
+  ) => {
+    setPendingSessionAction({ id, action });
     try {
-      await sessions.topUpSession(id, 1);
+      await operation();
     } catch (error) {
       handleApiError(error);
+    } finally {
+      setPendingSessionAction(null);
     }
+  };
+
+  // Top Up an active session (Allocate +$1.00)
+  const handleTopUpSession = async (id: string) => {
+    await runSessionAction(id, 'top-up', () => sessions.topUpSession(id, 1));
   };
 
   // Pause / Resume continuous billing triggers
   const handleTogglePauseSession = async (id: string) => {
-    try {
-      await sessions.togglePauseSession(id);
-    } catch (error) {
-      handleApiError(error);
-    }
+    await runSessionAction(id, 'pause', () => sessions.togglePauseSession(id));
   };
 
   // Revoke session completely (instantly terminates, remaining balance settled back to wallet)
   const handleRevokeSession = async (id: string) => {
-    try {
-      await sessions.revokeSession(id);
-    } catch (error) {
-      handleApiError(error);
-    }
+    if (!window.confirm('Revoke this FiberPass now? Remaining balance will be returned and future charges will be blocked.')) return;
+    await runSessionAction(id, 'revoke', () => sessions.revokeSession(id));
+  };
+
+  const handleCloseSession = async (id: string) => {
+    if (!window.confirm('Close and settle this FiberPass now? Remaining balance will be returned to your wallet.')) return;
+    await runSessionAction(id, 'close', () => sessions.closeSession(id));
   };
 
   const visibleError = apiError || sessions.error;
@@ -254,9 +264,11 @@ export default function App() {
                 walletBalance={wallet.balance}
                 totalActivePassValue={totalActivePassValue}
                 isLoading={sessions.isLoading}
+                pendingSessionAction={pendingSessionAction}
                 onTopUpSession={handleTopUpSession}
                 onTogglePauseSession={handleTogglePauseSession}
                 onRevokeSession={handleRevokeSession}
+                onCloseSession={handleCloseSession}
                 onCreateSessionClick={() => setIsModalOpen(true)}
               />
             )}

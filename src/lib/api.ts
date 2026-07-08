@@ -6,7 +6,7 @@ import { sessionsApi } from './sessionsApi';
 export { ApiError, apiRequest, clearAuthToken, getApiErrorMessage, getAuthToken, isApiError, setAuthToken } from './apiClient';
 export type { ApiRequestOptions } from './apiClient';
 export type { AuthChallenge, AuthVerifyPayload, AuthVerifyResponse } from './authApi';
-export type { CreateSessionPayload, SessionsOverview } from './sessionsApi';
+export type { CreateSessionPayload, CreateSessionPolicy, SessionsOverview, VerifiedApp } from './sessionsApi';
 
 export const fiberPassApi = {
   getAuthToken,

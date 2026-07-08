@@ -3,35 +3,80 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
-import { 
-  Bolt, 
-  X, 
-  Link2, 
-  HelpCircle, 
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Activity,
+  ArrowLeft,
   ArrowRight,
-  TrendingUp,
-  Coins,
-  LoaderCircle
+  Bolt,
+  CalendarClock,
+  CheckCircle2,
+  Cloud,
+  Code,
+  Cpu,
+  Database,
+  ExternalLink,
+  Link2,
+  LoaderCircle,
+  MessageSquare,
+  Search,
+  ShieldCheck,
+  Video,
+  Wallet,
+  X
 } from 'lucide-react';
-import { Session } from '../types';
+import { type CreateSessionPayload, type CreateSessionPolicy, type VerifiedApp, sessionsApi } from '../lib/sessionsApi';
+import { type Session } from '../types';
+
+type FlowStep = 'details' | 'review' | 'success';
+type AppMode = 'verified' | 'manual';
 
 interface CreateSessionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateSession: (sessionData: {
-    name: string;
-    serviceAddress: string;
-    limit: number;
-    currency: string;
-    duration: string;
-    expiryTime: string;
-    autoMicroCharges: boolean;
-    singleUse: boolean;
-    iconType: 'cloud' | 'code' | 'database' | 'cpu' | 'ai' | 'video' | 'rpc';
-  }) => void | Promise<void>;
+  onCreateSession: (sessionData: CreateSessionPayload) => void | Promise<void>;
   walletBalance: number;
   isSubmitting?: boolean;
+}
+
+const FALLBACK_POLICY: CreateSessionPolicy = {
+  limits: {
+    min: 0.05,
+    max: 500,
+    currency: 'USDC'
+  },
+  expiry: {
+    minMinutes: 5,
+    maxDays: 30
+  },
+  fees: {
+    platformFeeBps: 50,
+    minPlatformFee: 0.01,
+    estimatedNetworkFee: 0.001
+  },
+  verifiedApps: []
+};
+
+const LIMIT_PRESETS = [0.5, 1, 2, 5, 10];
+
+function formatUsd(value: number, digits = 2): string {
+  return '$' + value.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+function toDateTimeLocal(date: Date): string {
+  const offset = date.getTimezoneOffset();
+  const local = new Date(date.getTime() - offset * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function dateFromNow(hours: number): string {
+  return toDateTimeLocal(new Date(Date.now() + hours * 60 * 60 * 1000));
+}
+
+function formatExpiry(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Invalid expiry';
+  return date.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 export default function CreateSessionModal({
@@ -41,388 +86,587 @@ export default function CreateSessionModal({
   walletBalance,
   isSubmitting = false
 }: CreateSessionModalProps) {
-  const [serviceName, setServiceName] = useState('');
-  const [serviceAddress, setServiceAddress] = useState('');
-  const [spendingLimit, setSpendingLimit] = useState('');
+  const [step, setStep] = useState<FlowStep>('details');
+  const [appMode, setAppMode] = useState<AppMode>('verified');
+  const [policy, setPolicy] = useState<CreateSessionPolicy | null>(null);
+  const [policyLoading, setPolicyLoading] = useState(false);
+  const [policyError, setPolicyError] = useState('');
+  const [selectedAppId, setSelectedAppId] = useState('');
+  const [appSearch, setAppSearch] = useState('');
+  const [manualServiceName, setManualServiceName] = useState('');
+  const [manualServiceAddress, setManualServiceAddress] = useState('');
+  const [spendingLimit, setSpendingLimit] = useState('2.00');
   const [currency, setCurrency] = useState('USDC');
-  const [expiryPreset, setExpiryPreset] = useState<'1H' | '24H' | '7D' | 'Custom'>('24H');
-  const [customExpiryValue, setCustomExpiryValue] = useState(50); // Slider 1-100 mapped to days/hours
+  const [expiryDateTime, setExpiryDateTime] = useState(dateFromNow(24));
   const [autoMicroCharges, setAutoMicroCharges] = useState(true);
   const [singleUse, setSingleUse] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successName, setSuccessName] = useState('');
 
-  // Reset state when opening/closing
+  const resolvedPolicy = policy ?? FALLBACK_POLICY;
+  const verifiedApps = resolvedPolicy.verifiedApps;
+  const selectedApp = verifiedApps.find((app) => app.id === selectedAppId) ?? verifiedApps[0];
+
+  const filteredApps = useMemo(() => {
+    const query = appSearch.trim().toLowerCase();
+    if (!query) return verifiedApps;
+    return verifiedApps.filter((app) =>
+      app.name.toLowerCase().includes(query) ||
+      app.category.toLowerCase().includes(query) ||
+      app.description.toLowerCase().includes(query)
+    );
+  }, [appSearch, verifiedApps]);
+
+  const limitNum = Number.parseFloat(spendingLimit);
+  const normalizedLimit = Number.isFinite(limitNum) ? limitNum : 0;
+  const platformFeeEstimate = Math.max(
+    resolvedPolicy.fees.minPlatformFee,
+    normalizedLimit * (resolvedPolicy.fees.platformFeeBps / 10000)
+  );
+  const networkFeeEstimate = resolvedPolicy.fees.estimatedNetworkFee;
+  const totalEstimatedReserve = normalizedLimit + platformFeeEstimate + networkFeeEstimate;
+
   useEffect(() => {
-    if (isOpen) {
-      setServiceName('');
-      setServiceAddress('');
-      setSpendingLimit('');
-      setExpiryPreset('24H');
-      setCustomExpiryValue(50);
-      setAutoMicroCharges(true);
-      setSingleUse(false);
-      setErrorMessage('');
-    }
+    if (!isOpen) return;
+
+    setStep('details');
+    setAppMode('verified');
+    setPolicy(null);
+    setPolicyError('');
+    setSelectedAppId('');
+    setAppSearch('');
+    setManualServiceName('');
+    setManualServiceAddress('');
+    setSpendingLimit('2.00');
+    setCurrency('USDC');
+    setExpiryDateTime(dateFromNow(24));
+    setAutoMicroCharges(true);
+    setSingleUse(false);
+    setErrorMessage('');
+    setSuccessName('');
+
+    let isMounted = true;
+    setPolicyLoading(true);
+    sessionsApi.getCreatePolicy()
+      .then((nextPolicy) => {
+        if (!isMounted) return;
+        setPolicy(nextPolicy);
+        setCurrency(nextPolicy.limits.currency);
+        setSelectedAppId(nextPolicy.verifiedApps[0]?.id ?? '');
+      })
+      .catch((error) => {
+        if (!isMounted) return;
+        setPolicyError(error instanceof Error ? error.message : 'Could not load create-pass policy.');
+      })
+      .finally(() => {
+        if (isMounted) setPolicyLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  // Resolve actual display string of expiry time based on preset or custom slider
-  const getExpiryDisplay = () => {
-    if (expiryPreset === '1H') return '1 Hour';
-    if (expiryPreset === '24H') return '24 Hours';
-    if (expiryPreset === '7D') return '7 Days';
-    
-    // Custom slider map (1 to 100) -> 1 hour to 30 days
-    if (customExpiryValue < 10) return `${customExpiryValue + 1} Hours`;
-    const days = Math.max(1, Math.round(customExpiryValue / 3.3));
-    return `${days} Days`;
-  };
-
-  const handleApplyPresetLimit = (amount: number | 'max') => {
-    if (amount === 'max') {
-      // Keep a buffer of 5 USDC
-      setSpendingLimit(Math.max(0, walletBalance - 5).toFixed(2));
-    } else {
-      setSpendingLimit(amount.toString());
+  const renderAppIcon = (type: Session['iconType']) => {
+    switch (type) {
+      case 'cloud':
+        return <Cloud className="w-4 h-4 text-primary" />;
+      case 'code':
+        return <Code className="w-4 h-4 text-primary" />;
+      case 'database':
+        return <Database className="w-4 h-4 text-primary" />;
+      case 'cpu':
+        return <Cpu className="w-4 h-4 text-primary" />;
+      case 'ai':
+        return <MessageSquare className="w-4 h-4 text-primary" />;
+      case 'video':
+        return <Video className="w-4 h-4 text-primary" />;
+      case 'rpc':
+        return <Activity className="w-4 h-4 text-primary" />;
+      default:
+        return <Activity className="w-4 h-4 text-primary" />;
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isSubmitting) return;
+  const currentAppName = appMode === 'verified' ? selectedApp?.name ?? '' : manualServiceName.trim();
+  const currentServiceAddress = appMode === 'verified' ? selectedApp?.serviceAddress ?? '' : manualServiceAddress.trim();
+  const currentChargePolicy = appMode === 'verified' ? selectedApp?.chargePolicy : autoMicroCharges ? 'Manual app may charge until the pass limit is reached.' : 'Manual app can be charged once after owner action.';
+
+  const validateDetails = (): boolean => {
     setErrorMessage('');
 
-    // Form validation
-    if (!serviceName.trim()) {
-      setErrorMessage('Please enter an Application or Service Name.');
-      return;
+    if (appMode === 'verified' && !selectedApp) {
+      setErrorMessage('Select a verified app or switch to manual advanced mode.');
+      return false;
     }
 
-    if (!serviceAddress.trim()) {
-      setErrorMessage('Please provide a wallet address or ENS domain.');
-      return;
+    if (appMode === 'manual') {
+      if (!manualServiceName.trim()) {
+        setErrorMessage('Enter the manual app name.');
+        return false;
+      }
+
+      const isENS = manualServiceAddress.endsWith('.eth');
+      const isHex = manualServiceAddress.startsWith('0x') && manualServiceAddress.length === 42;
+      if (!isENS && !isHex) {
+        setErrorMessage('Enter a valid app address or ENS name for manual mode.');
+        return false;
+      }
     }
 
-    // Simple Ethereum address validation helper
-    const isENS = serviceAddress.endsWith('.eth');
-    const isHex = serviceAddress.startsWith('0x') && serviceAddress.length === 42;
-    if (!isENS && !isHex && serviceAddress.length < 5) {
-      setErrorMessage('Please enter a valid Hex Address (0x...) or ENS name (e.g. app.eth).');
-      return;
-    }
-
-    const limitNum = parseFloat(spendingLimit);
-    if (isNaN(limitNum) || limitNum <= 0) {
-      setErrorMessage('Please enter a spending limit greater than 0.');
-      return;
+    if (!Number.isFinite(limitNum) || limitNum < resolvedPolicy.limits.min || limitNum > resolvedPolicy.limits.max) {
+      setErrorMessage('Limit must be between ' + formatUsd(resolvedPolicy.limits.min) + ' and ' + formatUsd(resolvedPolicy.limits.max) + '.');
+      return false;
     }
 
     if (limitNum > walletBalance) {
-      setErrorMessage(`Insufficient wallet balance. Your maximum limit can be ${walletBalance.toFixed(2)} USDC.`);
+      setErrorMessage('Insufficient wallet balance. Your maximum pass limit is ' + formatUsd(walletBalance) + '.');
+      return false;
+    }
+
+    const expiry = new Date(expiryDateTime);
+    if (Number.isNaN(expiry.getTime())) {
+      setErrorMessage('Choose a valid expiry date and time.');
+      return false;
+    }
+
+    const minExpiry = Date.now() + resolvedPolicy.expiry.minMinutes * 60 * 1000;
+    const maxExpiry = Date.now() + resolvedPolicy.expiry.maxDays * 24 * 60 * 60 * 1000;
+    if (expiry.getTime() < minExpiry || expiry.getTime() > maxExpiry) {
+      setErrorMessage('Expiry must be between ' + resolvedPolicy.expiry.minMinutes + ' minutes and ' + resolvedPolicy.expiry.maxDays + ' days from now.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const buildPayload = (): CreateSessionPayload => {
+    const expiry = new Date(expiryDateTime);
+    return {
+      name: currentAppName,
+      serviceAddress: currentServiceAddress,
+      appId: appMode === 'verified' ? selectedApp?.id : 'manual',
+      appUrl: appMode === 'verified' ? selectedApp?.url : undefined,
+      appTrustLevel: appMode === 'verified' ? selectedApp?.trustLevel : 'manual',
+      appPermissions: appMode === 'verified' ? selectedApp?.permissions : ['Charge through FiberPass API', 'Read pass status'],
+      chargePolicy: currentChargePolicy,
+      expiryAt: expiry.toISOString(),
+      platformFeeEstimate,
+      networkFeeEstimate,
+      limit: normalizedLimit,
+      currency,
+      duration: 'until-expiry',
+      expiryTime: expiry.toISOString(),
+      autoMicroCharges,
+      singleUse,
+      iconType: appMode === 'verified' ? selectedApp?.iconType ?? 'rpc' : 'rpc'
+    };
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (isSubmitting) return;
+
+    if (step === 'details') {
+      if (validateDetails()) setStep('review');
       return;
     }
 
-    // Map a random cute system iconType for the card
-    const iconTypes: Array<'cloud' | 'code' | 'database' | 'cpu' | 'ai' | 'video' | 'rpc'> = [
-      'cloud', 'code', 'database', 'cpu', 'ai', 'video', 'rpc'
-    ];
-    // Map based on name keyword if possible, otherwise random
-    let iconType: 'cloud' | 'code' | 'database' | 'cpu' | 'ai' | 'video' | 'rpc' = 'rpc';
-    const lowerName = serviceName.toLowerCase();
-    if (lowerName.includes('ai') || lowerName.includes('chat') || lowerName.includes('bot')) iconType = 'ai';
-    else if (lowerName.includes('cloud') || lowerName.includes('lambda')) iconType = 'cloud';
-    else if (lowerName.includes('data') || lowerName.includes('db') || lowerName.includes('storage')) iconType = 'database';
-    else if (lowerName.includes('api') || lowerName.includes('dev')) iconType = 'code';
-    else if (lowerName.includes('node') || lowerName.includes('rpc')) iconType = 'rpc';
-    else if (lowerName.includes('video') || lowerName.includes('stream') || lowerName.includes('media')) iconType = 'video';
-    else iconType = iconTypes[Math.floor(Math.random() * iconTypes.length)];
+    if (!validateDetails()) return;
 
     try {
-      await onCreateSession({
-        name: serviceName.trim(),
-        serviceAddress: serviceAddress.trim(),
-        limit: limitNum,
-        currency,
-        duration: getExpiryDisplay().replace(/\s+/g, '').toLowerCase(),
-        expiryTime: getExpiryDisplay(),
-        autoMicroCharges,
-        singleUse,
-        iconType
-      });
-      onClose();
+      await onCreateSession(buildPayload());
+      setSuccessName(currentAppName);
+      setStep('success');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Could not create FiberPass session.');
     }
   };
 
+  const detailRows = [
+    ['App', currentAppName || 'Not selected'],
+    ['Limit', formatUsd(normalizedLimit)],
+    ['Expiry', formatExpiry(expiryDateTime)],
+    ['Platform fee estimate', formatUsd(platformFeeEstimate, 3)],
+    ['Fiber network fee estimate', formatUsd(networkFeeEstimate, 3)]
+  ];
+
   return (
     <div className="fixed inset-0 bg-background/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      {/* Modal Dialog container */}
-      <div className="w-full max-w-[600px] bg-surface-container-low border border-outline-variant rounded-2xl shadow-2xl overflow-hidden relative">
-        
-        {/* Header block */}
-        <header className="flex items-center justify-between px-6 py-5 border-b border-outline-variant/50 bg-surface-container/50">
-          <div className="flex items-center gap-2.5">
-            <Bolt className="w-6 h-6 text-primary fill-current" />
-            <h2 className="text-xl font-bold text-on-surface tracking-tight">Create Session</h2>
+      <div className="w-full max-w-[760px] max-h-[92vh] bg-surface-container-low border border-outline-variant rounded-2xl shadow-2xl overflow-hidden relative flex flex-col">
+        <header className="flex items-center justify-between px-6 py-5 border-b border-outline-variant/50 bg-surface-container/50 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Bolt className="w-6 h-6 text-primary fill-current shrink-0" />
+            <div className="min-w-0">
+              <h2 className="text-xl font-bold text-on-surface tracking-tight">Create FiberPass</h2>
+              <p className="text-xs text-on-surface-variant truncate">{step === 'review' ? 'Review pass contract' : step === 'success' ? 'Pass created' : 'App, limit, expiry, and payment policy'}</p>
+            </div>
           </div>
-          <button 
+          <button
             id="modal-close-btn"
             onClick={onClose}
-            className="p-1.5 text-on-surface-variant hover:text-on-surface rounded-full hover:bg-surface-variant transition-colors"
+            disabled={isSubmitting}
+            className="p-1.5 text-on-surface-variant hover:text-on-surface rounded-full hover:bg-surface-variant transition-colors disabled:opacity-60"
             title="Close modal"
           >
             <X className="w-5 h-5" />
           </button>
         </header>
 
-        {/* Modal Form body */}
-        <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-6">
-          
-          {/* Validation Error Message */}
-          {errorMessage && (
-            <div className="bg-error/10 border border-error/30 text-error rounded-xl p-3 text-xs font-semibold flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-error shrink-0" />
-              {errorMessage}
+        {step === 'success' ? (
+          <div className="p-8 flex flex-col items-center text-center gap-5 overflow-y-auto">
+            <div className="w-14 h-14 rounded-2xl border border-secondary/30 bg-secondary/10 flex items-center justify-center text-secondary">
+              <CheckCircle2 className="w-8 h-8" />
             </div>
-          )}
-
-          {/* Input 1: Application/Service Name */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="service-name">
-              Service / App Name
-            </label>
-            <input 
-              id="service-name"
-              type="text" 
-              placeholder="e.g. AWS Compute Node, LLM summarizer..."
-              value={serviceName}
-              onChange={(e) => setServiceName(e.target.value)}
-              className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all placeholder:text-outline-variant"
-              required
-            />
-          </div>
-
-          {/* Input 2: App/Service target address */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="service-address">
-              App/Service Contract Address or Name
-            </label>
-            <div className="relative group">
-              <Link2 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-outline-variant group-focus-within:text-primary transition-colors w-4 h-4" />
-              <input 
-                id="service-address"
-                type="text" 
-                placeholder="0x... or App ENS (.eth)"
-                value={serviceAddress}
-                onChange={(e) => setServiceAddress(e.target.value)}
-                className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 pl-10 pr-4 text-sm font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all placeholder:text-outline-variant"
-                required
-              />
+            <div className="space-y-2">
+              <h3 className="text-2xl font-bold text-on-surface">FiberPass Created</h3>
+              <p className="text-sm text-on-surface-variant max-w-md">
+                {successName} can now charge within the approved limit until the pass is paused, closed, revoked, depleted, or expired.
+              </p>
             </div>
-          </div>
-
-          {/* Input 3: Spending Limit (Tokens) */}
-          <div className="flex flex-col gap-1.5">
-            <div className="flex justify-between items-end">
-              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="spending-limit">
-                Spending Limit
-              </label>
-              <span className="font-mono text-[10px] text-outline font-semibold">
-                Balance: {walletBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} USDC
-              </span>
-            </div>
-            
-            <div className="flex items-center bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/50 transition-all">
-              <input 
-                id="spending-limit"
-                type="number" 
-                step="any"
-                min="0.01"
-                placeholder="0.00"
-                value={spendingLimit}
-                onChange={(e) => setSpendingLimit(e.target.value)}
-                className="flex-grow bg-transparent border-none py-3 px-4 text-xl font-mono text-on-surface focus:ring-0 focus:outline-none placeholder:text-outline-variant"
-                required
-              />
-              <div className="flex items-center px-4 border-l border-outline-variant bg-surface-container h-full">
-                <select 
-                  value={currency} 
-                  onChange={(e) => setCurrency(e.target.value)}
-                  className="bg-transparent border-none text-on-surface text-xs font-bold focus:ring-0 cursor-pointer outline-none appearance-none pr-4"
-                >
-                  <option value="USDC">USDC</option>
-                  <option value="USD">USD</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Presets Grid */}
-            <div className="flex gap-2.5 mt-1">
-              <button 
-                type="button" 
-                onClick={() => handleApplyPresetLimit(100)}
-                className="flex-1 py-1.5 rounded border border-outline-variant bg-surface-container text-on-surface-variant font-mono text-xs hover:border-primary hover:text-primary transition-colors cursor-pointer"
-              >
-                100
-              </button>
-              <button 
-                type="button" 
-                onClick={() => handleApplyPresetLimit(500)}
-                className="flex-1 py-1.5 rounded border border-outline-variant bg-surface-container text-on-surface-variant font-mono text-xs hover:border-primary hover:text-primary transition-colors cursor-pointer"
-              >
-                500
-              </button>
-              <button 
-                type="button" 
-                onClick={() => handleApplyPresetLimit('max')}
-                className="flex-1 py-1.5 rounded border border-outline-variant bg-surface-container text-on-surface-variant font-mono text-xs hover:border-primary hover:text-primary transition-colors cursor-pointer"
-              >
-                Max Limit
-              </button>
-            </div>
-          </div>
-
-          {/* Input 4: Expiry Time Controls */}
-          <div className="flex flex-col gap-3">
-            <div className="flex justify-between items-center">
-              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
-                Expiry Time
-              </label>
-              <span className="font-mono text-xs font-bold text-primary">
-                {getExpiryDisplay()}
-              </span>
-            </div>
-
-            {/* Preset Selector */}
-            <div className="grid grid-cols-4 gap-1 p-1 bg-surface-container-lowest rounded-xl border border-outline-variant">
-              {(['1H', '24H', '7D', 'Custom'] as const).map((preset) => (
-                <button 
-                  key={preset}
-                  type="button"
-                  onClick={() => setExpiryPreset(preset)}
-                  className={`py-2 text-center rounded-lg font-bold text-xs transition-all cursor-pointer ${
-                    expiryPreset === preset 
-                      ? 'bg-surface-variant text-on-surface border border-outline-variant/60 shadow-sm' 
-                      : 'text-on-surface-variant hover:text-on-surface bg-transparent border-none'
-                  }`}
-                >
-                  {preset}
-                </button>
-              ))}
-            </div>
-
-            {/* Custom range slider representing time boundaries */}
-            {expiryPreset === 'Custom' && (
-              <div className="px-1 mt-1">
-                <input 
-                  aria-label="Custom Expiry Slider"
-                  type="range" 
-                  min="1" 
-                  max="100" 
-                  value={customExpiryValue} 
-                  onChange={(e) => setCustomExpiryValue(parseInt(e.target.value))}
-                  className="w-full h-1 bg-surface-container-highest rounded-lg appearance-none cursor-pointer accent-primary"
-                />
-                <div className="flex justify-between mt-1.5 font-mono text-[9px] text-outline-variant">
-                  <span>Now (1h)</span>
-                  <span>Max (30D)</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="h-px w-full bg-outline-variant/40 my-1" />
-
-          {/* Permissions Toggle Toggles */}
-          <div className="flex flex-col gap-3">
-            <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
-              Permissions
-            </label>
-
-            {/* Toggle 1: Auto charges */}
-            <div 
-              onClick={() => setAutoMicroCharges(!autoMicroCharges)}
-              className="flex items-center justify-between p-4 border border-outline-variant rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer group"
-            >
-              <div className="flex flex-col gap-0.5 pr-4 min-w-0">
-                <span className="font-bold text-sm text-on-surface group-hover:text-primary transition-colors">
-                  Automatic micro-charges
-                </span>
-                <span className="text-[11px] text-on-surface-variant leading-relaxed">
-                  Allow continuous streaming payments up to the specified limit in the background.
-                </span>
-              </div>
-              
-              {/* Checkbox Toggle Styled Component */}
-              <div 
-                className={`relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 border border-transparent ${
-                  autoMicroCharges 
-                    ? 'bg-secondary shadow-[0_0_12px_rgba(78,222,163,0.25)]' 
-                    : 'bg-surface-container-highest border-outline-variant'
-                }`}
-              >
-                <div 
-                  className={`absolute top-[2px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full transition-all duration-200 ${
-                    autoMicroCharges ? 'left-[21px]' : 'left-[2px]'
-                  }`} 
-                />
-              </div>
-            </div>
-
-            {/* Toggle 2: Single use */}
-            <div 
-              onClick={() => setSingleUse(!singleUse)}
-              className="flex items-center justify-between p-4 border border-outline-variant rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer group"
-            >
-              <div className="flex flex-col gap-0.5 pr-4 min-w-0">
-                <span className="font-bold text-sm text-on-surface group-hover:text-primary transition-colors">
-                  Single-use only
-                </span>
-                <span className="text-[11px] text-on-surface-variant leading-relaxed">
-                  Session automatically terminates and settles immediately after the first transaction.
-                </span>
-              </div>
-
-              {/* Checkbox Toggle Styled Component */}
-              <div 
-                className={`relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 border border-transparent ${
-                  singleUse 
-                    ? 'bg-secondary shadow-[0_0_12px_rgba(78,222,163,0.25)]' 
-                    : 'bg-surface-container-highest border-outline-variant'
-                }`}
-              >
-                <div 
-                  className={`absolute top-[2px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full transition-all duration-200 ${
-                    singleUse ? 'left-[21px]' : 'left-[2px]'
-                  }`} 
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Footer form button */}
-          <div className="mt-4 pt-4 border-t border-outline-variant bg-surface-container-lowest/40 -mx-6 -mb-6 p-6 flex gap-3">
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={onClose}
-              disabled={isSubmitting}
-              className="flex-1 bg-surface border border-outline hover:border-white text-on-surface-variant hover:text-white transition-colors py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              className="bg-primary text-on-primary hover:bg-primary-fixed py-3 px-5 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer"
             >
-              Cancel
-            </button>
-            <button 
-              type="submit"
-              disabled={isSubmitting}
-              className="flex-1 bg-primary text-on-primary hover:bg-primary-fixed py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 hover:shadow-[0_0_20px_rgba(176,198,255,0.25)] transition-all cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              <span>{isSubmitting ? 'Creating...' : 'Create FiberPass'}</span>
-              {isSubmitting ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+              View Active Passes
             </button>
           </div>
-          
-        </form>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex flex-col min-h-0">
+            <div className="p-6 flex flex-col gap-6 overflow-y-auto">
+              {(errorMessage || policyError) && (
+                <div className="bg-error/10 border border-error/30 text-error rounded-xl p-3 text-xs font-semibold flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-error shrink-0" />
+                  {errorMessage || policyError}
+                </div>
+              )}
+
+              {step === 'details' ? (
+                <>
+                  <section className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">App</label>
+                      <div className="grid grid-cols-2 gap-1 p-1 bg-surface-container-lowest rounded-xl border border-outline-variant w-full max-w-[280px]">
+                        <button
+                          type="button"
+                          onClick={() => setAppMode('verified')}
+                          className={appMode === 'verified' ? 'py-2 rounded-lg text-xs font-bold bg-surface-variant text-on-surface border border-outline-variant/60' : 'py-2 rounded-lg text-xs font-bold text-on-surface-variant hover:text-on-surface'}
+                        >
+                          Verified
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAppMode('manual')}
+                          className={appMode === 'manual' ? 'py-2 rounded-lg text-xs font-bold bg-surface-variant text-on-surface border border-outline-variant/60' : 'py-2 rounded-lg text-xs font-bold text-on-surface-variant hover:text-on-surface'}
+                        >
+                          Manual
+                        </button>
+                      </div>
+                    </div>
+
+                    {appMode === 'verified' ? (
+                      <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-4">
+                        <div className="flex flex-col gap-3">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
+                            <input
+                              type="text"
+                              placeholder={policyLoading ? 'Loading apps...' : 'Search verified apps'}
+                              value={appSearch}
+                              onChange={(event) => setAppSearch(event.target.value)}
+                              className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 pl-10 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
+                            />
+                          </div>
+
+                          <div className="grid gap-2 max-h-[260px] overflow-y-auto pr-1">
+                            {filteredApps.length === 0 ? (
+                              <div className="border border-outline-variant border-dashed rounded-xl p-4 text-sm text-on-surface-variant">
+                                No verified apps match this search.
+                              </div>
+                            ) : filteredApps.map((app) => (
+                              <button
+                                key={app.id}
+                                type="button"
+                                onClick={() => setSelectedAppId(app.id)}
+                                className={(selectedApp?.id === app.id ? 'border-primary bg-primary/10 ' : 'border-outline-variant bg-surface-container ') + 'w-full text-left rounded-xl border p-4 transition-colors hover:border-primary/60'}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div className="w-9 h-9 rounded-lg border border-outline-variant bg-surface-container-highest flex items-center justify-center shrink-0">
+                                    {renderAppIcon(app.iconType)}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="font-bold text-sm text-on-surface truncate">{app.name}</span>
+                                      <span className="text-[9px] uppercase tracking-wider font-bold text-secondary border border-secondary/30 rounded-full px-2 py-0.5 shrink-0">{app.trustLevel}</span>
+                                    </div>
+                                    <p className="text-xs text-on-surface-variant mt-1 line-clamp-2">{app.description}</p>
+                                    <p className="font-mono text-[10px] text-outline mt-2 truncate">{app.chargePolicy}</p>
+                                  </div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-4 flex flex-col gap-3 min-h-[220px]">
+                          {selectedApp ? (
+                            <>
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">Selected App</p>
+                                  <h3 className="font-bold text-on-surface mt-1">{selectedApp.name}</h3>
+                                </div>
+                                <a href={selectedApp.url} target="_blank" rel="noreferrer" className="text-primary hover:text-secondary transition-colors" title="Open app URL">
+                                  <ExternalLink className="w-4 h-4" />
+                                </a>
+                              </div>
+                              <div className="space-y-2 text-xs text-on-surface-variant">
+                                <div className="flex justify-between gap-3"><span>Category</span><span className="font-semibold text-on-surface">{selectedApp.category}</span></div>
+                                <div className="flex justify-between gap-3"><span>Default charge</span><span className="font-mono text-secondary">{formatUsd(selectedApp.defaultCharge, 3)}</span></div>
+                                <div className="flex justify-between gap-3"><span>Service address</span><span className="font-mono text-[10px] text-on-surface truncate max-w-[180px]">{selectedApp.serviceAddress}</span></div>
+                              </div>
+                              <div className="border-t border-outline-variant/50 pt-3">
+                                <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2">Requested Permissions</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {selectedApp.permissions.map((permission) => (
+                                    <span key={permission} className="text-[10px] rounded-full border border-outline-variant bg-surface-container-high px-2 py-1 text-on-surface-variant">
+                                      {permission}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex items-center justify-center h-full text-sm text-on-surface-variant">Select an app to preview details.</div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="manual-service-name">App Name</label>
+                          <input
+                            id="manual-service-name"
+                            type="text"
+                            placeholder="e.g. My API app"
+                            value={manualServiceName}
+                            onChange={(event) => setManualServiceName(event.target.value)}
+                            className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="manual-service-address">App Address</label>
+                          <div className="relative">
+                            <Link2 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-outline-variant w-4 h-4" />
+                            <input
+                              id="manual-service-address"
+                              type="text"
+                              placeholder="0x... or app.eth"
+                              value={manualServiceAddress}
+                              onChange={(event) => setManualServiceAddress(event.target.value)}
+                              className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 pl-10 pr-4 text-sm font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    <div className="flex flex-col gap-3">
+                      <div className="flex justify-between items-end">
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="spending-limit">Spending Limit</label>
+                        <span className="font-mono text-[10px] text-outline font-semibold">Balance: {formatUsd(walletBalance)} {currency}</span>
+                      </div>
+
+                      <div className="flex items-center bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/50 transition-all">
+                        <input
+                          id="spending-limit"
+                          type="number"
+                          step="0.01"
+                          min={resolvedPolicy.limits.min}
+                          max={resolvedPolicy.limits.max}
+                          value={spendingLimit}
+                          onChange={(event) => setSpendingLimit(event.target.value)}
+                          className="flex-grow bg-transparent border-none py-3 px-4 text-xl font-mono text-on-surface focus:ring-0 focus:outline-none placeholder:text-outline-variant"
+                        />
+                        <div className="flex items-center px-4 border-l border-outline-variant bg-surface-container h-full text-xs font-bold text-on-surface">
+                          {currency}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-5 gap-2">
+                        {LIMIT_PRESETS.map((amount) => (
+                          <button
+                            key={amount}
+                            type="button"
+                            onClick={() => setSpendingLimit(amount.toFixed(2))}
+                            className="py-1.5 rounded border border-outline-variant bg-surface-container text-on-surface-variant font-mono text-xs hover:border-primary hover:text-primary transition-colors cursor-pointer"
+                          >
+                            {amount}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-on-surface-variant">Allowed range: {formatUsd(resolvedPolicy.limits.min)} to {formatUsd(resolvedPolicy.limits.max)}.</p>
+                    </div>
+
+                    <div className="flex flex-col gap-3">
+                      <div className="flex justify-between items-end">
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="expiry-date">Expiry</label>
+                        <span className="font-mono text-[10px] text-primary font-bold">{formatExpiry(expiryDateTime)}</span>
+                      </div>
+                      <input
+                        id="expiry-date"
+                        type="datetime-local"
+                        value={expiryDateTime}
+                        min={dateFromNow(resolvedPolicy.expiry.minMinutes / 60)}
+                        max={dateFromNow(resolvedPolicy.expiry.maxDays * 24)}
+                        onChange={(event) => setExpiryDateTime(event.target.value)}
+                        className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-3 px-4 text-sm font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50"
+                      />
+                      <div className="grid grid-cols-3 gap-2">
+                        <button type="button" onClick={() => setExpiryDateTime(dateFromNow(1))} className="py-1.5 rounded border border-outline-variant bg-surface-container text-on-surface-variant font-mono text-xs hover:border-primary hover:text-primary">1H</button>
+                        <button type="button" onClick={() => setExpiryDateTime(dateFromNow(24))} className="py-1.5 rounded border border-outline-variant bg-surface-container text-on-surface-variant font-mono text-xs hover:border-primary hover:text-primary">24H</button>
+                        <button type="button" onClick={() => setExpiryDateTime(dateFromNow(24 * 7))} className="py-1.5 rounded border border-outline-variant bg-surface-container text-on-surface-variant font-mono text-xs hover:border-primary hover:text-primary">7D</button>
+                      </div>
+                      <p className="text-[11px] text-on-surface-variant">Maximum expiry: {resolvedPolicy.expiry.maxDays} days.</p>
+                    </div>
+                  </section>
+
+                  <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setAutoMicroCharges(!autoMicroCharges)}
+                      className="flex items-center justify-between p-4 border border-outline-variant rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer text-left"
+                    >
+                      <div className="pr-4 min-w-0">
+                        <span className="font-bold text-sm text-on-surface block">Continuous charging</span>
+                        <span className="text-[11px] text-on-surface-variant leading-relaxed">App can charge repeatedly until the pass limit or expiry is reached.</span>
+                      </div>
+                      <span className={autoMicroCharges ? 'w-11 h-6 rounded-full bg-secondary relative shrink-0' : 'w-11 h-6 rounded-full bg-surface-container-highest border border-outline-variant relative shrink-0'}>
+                        <span className={autoMicroCharges ? 'absolute top-[2px] left-[21px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full' : 'absolute top-[2px] left-[2px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full'} />
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSingleUse(!singleUse)}
+                      className="flex items-center justify-between p-4 border border-outline-variant rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer text-left"
+                    >
+                      <div className="pr-4 min-w-0">
+                        <span className="font-bold text-sm text-on-surface block">Single use</span>
+                        <span className="text-[11px] text-on-surface-variant leading-relaxed">Pass settles after the first successful charge and refunds the remainder.</span>
+                      </div>
+                      <span className={singleUse ? 'w-11 h-6 rounded-full bg-secondary relative shrink-0' : 'w-11 h-6 rounded-full bg-surface-container-highest border border-outline-variant relative shrink-0'}>
+                        <span className={singleUse ? 'absolute top-[2px] left-[21px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full' : 'absolute top-[2px] left-[2px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full'} />
+                      </span>
+                    </button>
+                  </section>
+
+                  <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-4">
+                      <Wallet className="w-4 h-4 text-primary mb-2" />
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">Available Fiber Balance</p>
+                      <p className="font-mono text-lg font-bold text-on-surface mt-1">{formatUsd(walletBalance)}</p>
+                    </div>
+                    <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-4">
+                      <ShieldCheck className="w-4 h-4 text-secondary mb-2" />
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">Platform Fee Estimate</p>
+                      <p className="font-mono text-lg font-bold text-on-surface mt-1">{formatUsd(platformFeeEstimate, 3)}</p>
+                    </div>
+                    <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-4">
+                      <CalendarClock className="w-4 h-4 text-primary mb-2" />
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">Network Fee Estimate</p>
+                      <p className="font-mono text-lg font-bold text-on-surface mt-1">{formatUsd(networkFeeEstimate, 3)}</p>
+                    </div>
+                  </section>
+                </>
+              ) : (
+                <section className="grid grid-cols-1 lg:grid-cols-[1fr_0.9fr] gap-5">
+                  <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-5 flex flex-col gap-4">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">Review Before Authorization</p>
+                      <h3 className="text-xl font-bold text-on-surface mt-1">{currentAppName}</h3>
+                      <p className="font-mono text-[10px] text-on-surface-variant mt-1 break-all">{currentServiceAddress}</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      {detailRows.map(([label, value]) => (
+                        <div key={label} className="flex justify-between gap-4 text-sm border-b border-outline-variant/30 pb-2 last:border-b-0">
+                          <span className="text-on-surface-variant">{label}</span>
+                          <span className="font-semibold text-on-surface text-right">{value}</span>
+                        </div>
+                      ))}
+                      <div className="flex justify-between gap-4 text-sm pt-2">
+                        <span className="text-on-surface-variant">Estimated total impact</span>
+                        <span className="font-mono font-bold text-primary text-right">{formatUsd(totalEstimatedReserve, 3)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-primary/25 bg-primary/5 p-5 flex flex-col gap-4">
+                    <ShieldCheck className="w-6 h-6 text-primary" />
+                    <div>
+                      <h4 className="font-bold text-on-surface">Wallet Authorization</h4>
+                      <p className="text-sm text-on-surface-variant mt-1 leading-relaxed">
+                        This creates a prepaid, revocable FiberPass for the selected app. The app cannot exceed the limit, charge after expiry, or charge after pause, close, or revoke.
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2">Charge Policy</p>
+                      <p className="text-sm text-on-surface">{currentChargePolicy}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2">Permissions</p>
+                      <div className="flex flex-wrap gap-2">
+                        {(appMode === 'verified' ? selectedApp?.permissions ?? [] : ['Charge through FiberPass API', 'Read pass status']).map((permission) => (
+                          <span key={permission} className="text-[10px] rounded-full border border-outline-variant bg-surface-container-high px-2 py-1 text-on-surface-variant">
+                            {permission}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              )}
+            </div>
+
+            <div className="mt-auto pt-4 border-t border-outline-variant bg-surface-container-lowest/40 p-6 flex flex-col sm:flex-row gap-3 shrink-0">
+              {step === 'review' ? (
+                <button
+                  type="button"
+                  onClick={() => setStep('details')}
+                  disabled={isSubmitting}
+                  className="sm:w-40 bg-surface border border-outline hover:border-white text-on-surface-variant hover:text-white transition-colors py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Back
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={isSubmitting}
+                  className="sm:w-40 bg-surface border border-outline hover:border-white text-on-surface-variant hover:text-white transition-colors py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSubmitting || policyLoading}
+                className="flex-1 bg-primary text-on-primary hover:bg-primary-fixed py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 hover:shadow-[0_0_20px_rgba(176,198,255,0.25)] transition-all cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                <span>{isSubmitting ? 'Creating...' : step === 'review' ? 'Authorize FiberPass' : 'Review Pass'}</span>
+                {isSubmitting || policyLoading ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

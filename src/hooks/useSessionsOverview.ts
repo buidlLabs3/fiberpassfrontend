@@ -120,6 +120,7 @@ export function useSessionsOverview(enabled: boolean) {
     createSession: (payload: CreateSessionPayload) => runMutation(() => sessionsApi.createSession(payload)),
     topUpSession: (id: string, amount = 1) => runMutation(() => sessionsApi.topUpSession(id, amount)),
     togglePauseSession: (id: string) => runMutation(() => sessionsApi.togglePauseSession(id)),
-    revokeSession: (id: string) => runMutation(() => sessionsApi.revokeSession(id))
+    revokeSession: (id: string) => runMutation(() => sessionsApi.revokeSession(id)),
+    closeSession: (id: string) => runMutation(() => sessionsApi.closeSession(id))
   };
 }

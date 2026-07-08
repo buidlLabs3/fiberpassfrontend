@@ -14,6 +14,14 @@ export interface Session {
   id: string;
   name: string;
   serviceAddress: string;
+  appId?: string;
+  appUrl?: string;
+  appTrustLevel?: string;
+  appPermissions?: string[];
+  chargePolicy?: string;
+  expiryAt?: string;
+  platformFeeEstimate?: number;
+  networkFeeEstimate?: number;
   spent: number;
   limit: number;
   currency: string;

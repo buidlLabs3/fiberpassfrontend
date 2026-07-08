@@ -7,9 +7,49 @@ export interface SessionsOverview {
   historySessions: Session[];
 }
 
+export interface VerifiedApp {
+  id: string;
+  name: string;
+  serviceAddress: string;
+  url: string;
+  category: string;
+  trustLevel: 'verified' | 'reviewed' | 'manual';
+  description: string;
+  defaultCharge: number;
+  chargePolicy: string;
+  iconType: Session['iconType'];
+  permissions: string[];
+}
+
+export interface CreateSessionPolicy {
+  limits: {
+    min: number;
+    max: number;
+    currency: string;
+  };
+  expiry: {
+    minMinutes: number;
+    maxDays: number;
+  };
+  fees: {
+    platformFeeBps: number;
+    minPlatformFee: number;
+    estimatedNetworkFee: number;
+  };
+  verifiedApps: VerifiedApp[];
+}
+
 export interface CreateSessionPayload {
   name: string;
   serviceAddress: string;
+  appId?: string;
+  appUrl?: string;
+  appTrustLevel?: string;
+  appPermissions?: string[];
+  chargePolicy?: string;
+  expiryAt?: string;
+  platformFeeEstimate?: number;
+  networkFeeEstimate?: number;
   limit: number;
   currency: string;
   duration: string;
@@ -21,6 +61,8 @@ export interface CreateSessionPayload {
 
 export const sessionsApi = {
   getSessions: () => apiRequest<SessionsOverview>('/sessions'),
+
+  getCreatePolicy: () => apiRequest<CreateSessionPolicy>('/sessions/create-policy'),
 
   createSession: (payload: CreateSessionPayload) =>
     apiRequest<SessionsOverview>('/sessions', {
@@ -42,6 +84,18 @@ export const sessionsApi = {
 
   revokeSession: (id: string) =>
     apiRequest<SessionsOverview>('/sessions/' + encodeURIComponent(id) + '/revoke', {
+      method: 'POST',
+      body: JSON.stringify({})
+    }),
+
+  settleSession: (id: string) =>
+    apiRequest<SessionsOverview>('/sessions/' + encodeURIComponent(id) + '/settle', {
+      method: 'POST',
+      body: JSON.stringify({})
+    }),
+
+  closeSession: (id: string) =>
+    apiRequest<SessionsOverview>('/sessions/' + encodeURIComponent(id) + '/close', {
       method: 'POST',
       body: JSON.stringify({})
     })

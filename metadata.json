@@ -1,0 +1,6 @@
+{
+  "name": "FiberPass",
+  "description": "Frictionless micropayments into seamless streaming sessions. Institutional infrastructure for high-velocity dApps.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

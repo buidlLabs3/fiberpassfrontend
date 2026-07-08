@@ -337,6 +337,38 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
               </div>
             </div>
 
+            {/* Charge Attempts */}
+            <div className="p-6 border-t border-outline-variant/50 relative z-10 flex flex-col gap-3">
+              <h4 className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1.5">
+                <Receipt className="w-3.5 h-3.5 text-primary" />
+                Charge Attempts ({selectedSession.chargeAttempts?.length ?? 0})
+              </h4>
+
+              {(selectedSession.chargeAttempts?.length ?? 0) === 0 ? (
+                <p className="text-xs text-on-surface-variant py-2">No app charge attempts recorded.</p>
+              ) : (
+                <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                  {selectedSession.chargeAttempts.map((attempt) => (
+                    <div key={attempt.id} className="rounded-lg border border-outline-variant/40 bg-surface-container/50 p-3 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={attempt.status === 'succeeded' ? 'w-1.5 h-1.5 rounded-full bg-secondary shrink-0' : 'w-1.5 h-1.5 rounded-full bg-error shrink-0'} />
+                          <span className="font-semibold text-xs text-on-surface truncate">{attempt.type}</span>
+                        </div>
+                        <p className="font-mono text-[9px] text-on-surface-variant mt-1 truncate">{new Date(attempt.createdAt).toLocaleString()}</p>
+                        {attempt.failureMessage && (
+                          <p className="text-[10px] text-error mt-1 leading-relaxed">{attempt.failureCode}: {attempt.failureMessage}</p>
+                        )}
+                      </div>
+                      <span className={attempt.status === 'succeeded' ? 'font-mono font-semibold text-secondary text-xs shrink-0' : 'font-mono font-semibold text-error text-xs shrink-0'}>
+                        {attempt.status === 'succeeded' ? '+' : ''}{'$' + attempt.amount.toFixed(3)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Bottom Actions */}
             <div className="p-6 border-t border-outline-variant/50 bg-surface-container-low/40 backdrop-blur-sm relative z-10 flex gap-3">
               <button 

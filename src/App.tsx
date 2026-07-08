@@ -26,6 +26,7 @@ import {
 import { WalletState } from './types';
 import { fiberPassApi, getApiErrorMessage, type CreateSessionPayload } from './lib/api';
 import { connectJoyIdWallet, disconnectJoyIdWallet, getStoredJoyIdAddress, signJoyIdMessage } from './lib/joyid';
+import { useDeveloperApps } from './hooks/useDeveloperApps';
 import { useSessionsOverview } from './hooks/useSessionsOverview';
 
 // Subcomponents imports
@@ -34,11 +35,12 @@ import Sidebar from './components/Sidebar';
 import DashboardView from './components/DashboardView';
 import HistoryView from './components/HistoryView';
 import CreateSessionModal from './components/CreateSessionModal';
+import DeveloperAppsView from './components/DeveloperAppsView';
 
 export default function App() {
   // Navigation states
   const [currentView, setCurrentView] = useState<'landing' | 'app'>('landing');
-  const [activeTab, setActiveTab] = useState<'active' | 'history' | 'settings'>('active');
+  const [activeTab, setActiveTab] = useState<'active' | 'history' | 'developer' | 'settings'>('active');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Wallet and balance state
@@ -55,6 +57,7 @@ export default function App() {
   const [pendingSessionAction, setPendingSessionAction] = useState<{ id: string; action: 'top-up' | 'pause' | 'revoke' | 'close' } | null>(null);
 
   const sessions = useSessionsOverview(currentView === 'app' && wallet.connected);
+  const developerApps = useDeveloperApps(currentView === 'app' && wallet.connected && activeTab === 'developer');
   const activeSessions = sessions.activeSessions;
   const historySessions = sessions.historySessions;
 
@@ -276,6 +279,20 @@ export default function App() {
             {/* Session History Tab */}
             {activeTab === 'history' && (
               <HistoryView historySessions={historySessions} isLoading={sessions.isLoading} />
+            )}
+
+            {/* Developer Apps Tab */}
+            {activeTab === 'developer' && (
+              <DeveloperAppsView
+                apps={developerApps.apps}
+                isLoading={developerApps.isLoading}
+                error={developerApps.error}
+                generatedKey={developerApps.generatedKey}
+                onCreateApp={developerApps.createApp}
+                onCreateApiKey={developerApps.createApiKey}
+                onRevokeApiKey={developerApps.revokeApiKey}
+                onClearGeneratedKey={developerApps.clearGeneratedKey}
+              />
             )}
 
             {/* Custom Settings Tab */}

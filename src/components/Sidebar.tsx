@@ -8,6 +8,7 @@ import {
   Bolt, 
   History, 
   Settings, 
+  Code2,
   HelpCircle, 
   FileText, 
   Plus, 
@@ -17,8 +18,8 @@ import {
 } from 'lucide-react';
 
 interface SidebarProps {
-  currentTab: 'active' | 'history' | 'settings';
-  onTabChange: (tab: 'active' | 'history' | 'settings') => void;
+  currentTab: 'active' | 'history' | 'developer' | 'settings';
+  onTabChange: (tab: 'active' | 'history' | 'developer' | 'settings') => void;
   onCreateSessionClick: () => void;
   onExitDapp: () => void;
   walletAddress: string;
@@ -84,7 +85,7 @@ export default function Sidebar({
       </nav>
 
       {/* Mobile Bottom Bar for Tab Navigation */}
-      <nav aria-label="Mobile Navigation Tabs" className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface-container-low/95 backdrop-blur-md border-t border-outline-variant grid grid-cols-3 justify-center items-center z-50 px-2 pb-1">
+      <nav aria-label="Mobile Navigation Tabs" className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface-container-low/95 backdrop-blur-md border-t border-outline-variant grid grid-cols-4 justify-center items-center z-50 px-2 pb-1">
         <button
           id="mobile-tab-active"
           onClick={() => onTabChange('active')}
@@ -108,11 +109,18 @@ export default function Sidebar({
         </button>
 
         <button
+          id="mobile-tab-developer"
+          onClick={() => onTabChange('developer')}
+          className={(currentTab === 'developer' ? 'text-primary ' : 'text-on-surface-variant ') + 'flex flex-col items-center justify-center h-full gap-1 border-none bg-transparent cursor-pointer transition-colors'}
+        >
+          <Code2 className="w-5 h-5" />
+          <span className="text-[10px] font-semibold tracking-wider uppercase">Apps</span>
+        </button>
+
+        <button
           id="mobile-tab-settings"
           onClick={() => onTabChange('settings')}
-          className={`flex flex-col items-center justify-center h-full gap-1 border-none bg-transparent cursor-pointer transition-colors ${
-            currentTab === 'settings' ? 'text-primary' : 'text-on-surface-variant'
-          }`}
+          className={(currentTab === 'settings' ? 'text-primary ' : 'text-on-surface-variant ') + 'flex flex-col items-center justify-center h-full gap-1 border-none bg-transparent cursor-pointer transition-colors'}
         >
           <Settings className="w-5 h-5" />
           <span className="text-[10px] font-semibold tracking-wider uppercase">Settings</span>
@@ -188,15 +196,20 @@ export default function Sidebar({
           </button>
 
           <button
+            id="sidebar-tab-developer"
+            onClick={() => onTabChange('developer')}
+            className={(currentTab === 'developer' ? 'text-primary bg-primary-container/10 border-r-2 border-primary ' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface ') + 'w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 border-none bg-transparent cursor-pointer'}
+          >
+            <Code2 className={(currentTab === 'developer' ? 'text-primary ' : 'text-on-surface-variant ') + 'w-4.5 h-4.5 shrink-0'} />
+            Developer Apps
+          </button>
+
+          <button
             id="sidebar-tab-settings"
             onClick={() => onTabChange('settings')}
-            className={`w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 border-none bg-transparent cursor-pointer ${
-              currentTab === 'settings' 
-                ? 'text-primary bg-primary-container/10 border-r-2 border-primary' 
-                : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
-            }`}
+            className={(currentTab === 'settings' ? 'text-primary bg-primary-container/10 border-r-2 border-primary ' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface ') + 'w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 border-none bg-transparent cursor-pointer'}
           >
-            <Settings className={`w-4.5 h-4.5 shrink-0 ${currentTab === 'settings' ? 'text-primary' : 'text-on-surface-variant'}`} />
+            <Settings className={(currentTab === 'settings' ? 'text-primary ' : 'text-on-surface-variant ') + 'w-4.5 h-4.5 shrink-0'} />
             Settings
           </button>
         </nav>

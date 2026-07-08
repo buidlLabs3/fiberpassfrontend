@@ -10,6 +10,22 @@ export interface TransactionLog {
   amount: number;
 }
 
+export interface ChargeAttempt {
+  id: string;
+  sessionId: string;
+  appId?: string;
+  apiKeyId?: string;
+  amount: number;
+  currency: string;
+  type: string;
+  status: 'pending' | 'succeeded' | 'failed';
+  failureCode?: string;
+  failureMessage?: string;
+  resultingSpent?: number;
+  remainingBalance?: number;
+  createdAt: string;
+}
+
 export interface Session {
   id: string;
   name: string;
@@ -33,6 +49,7 @@ export interface Session {
   autoMicroCharges: boolean;
   singleUse: boolean;
   logs: TransactionLog[];
+  chargeAttempts: ChargeAttempt[];
 }
 
 export interface WalletState {

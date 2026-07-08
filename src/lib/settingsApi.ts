@@ -2,10 +2,9 @@ import { apiRequest } from './apiClient';
 
 export interface ApiMeta {
   service: string;
-  mode: 'demo' | 'product';
-  demoMode: boolean;
+  mode: 'product';
   fiber: {
-    provider: 'mock' | 'rpc';
+    provider: 'rpc';
     network: string;
     rpcConfigured: boolean;
   };

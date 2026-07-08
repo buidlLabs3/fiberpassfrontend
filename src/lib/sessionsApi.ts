@@ -42,7 +42,7 @@ export interface CreateSessionPolicy {
     estimatedNetworkFeeMinor?: number;
   };
   fiber?: {
-    provider: 'mock' | 'rpc';
+    provider: 'rpc';
     network: string;
   };
   verifiedApps: VerifiedApp[];

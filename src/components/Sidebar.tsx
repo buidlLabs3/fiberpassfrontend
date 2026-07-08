@@ -227,7 +227,7 @@ export default function Sidebar({
 
           <a 
             href="#" 
-            onClick={(e) => { e.preventDefault(); alert("FiberPass support is simulated. In a real app, this links to Zendesk/Telegram."); }}
+            onClick={(e) => { e.preventDefault(); window.open('mailto:support@fiberpass.app', '_blank'); }}
             className="flex items-center gap-3 px-4 py-2 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors text-xs font-medium"
           >
             <HelpCircle className="w-4 h-4" />

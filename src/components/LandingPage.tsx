@@ -285,7 +285,7 @@ export default function LandingPage({
                 <div className="w-3 h-3 rounded-full bg-tertiary/40" />
                 <div className="w-3 h-3 rounded-full bg-secondary/40" />
               </div>
-              <span className="text-[10px] text-on-surface-variant">fiberpass-demo.ts</span>
+              <span className="text-[10px] text-on-surface-variant">fiberpass-client.ts</span>
             </div>
             <pre className="text-xs leading-relaxed overflow-x-auto text-on-surface-variant p-2">
               <code className="text-emerald-400">

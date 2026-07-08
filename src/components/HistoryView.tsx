@@ -54,7 +54,7 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
   const handleExportCSV = (session: Session) => {
     if (!session) return;
     
-    // Construct mock CSV string
+    // Construct CSV string from the session ledger shown in the API response.
     const csvHeaders = "Log ID,Action,Timestamp,Charged Amount (USDC)\n";
     const csvRows = session.logs.map(log => 
       `"${log.id}","${log.type}","${log.timestamp}",$${log.amount.toFixed(3)}`

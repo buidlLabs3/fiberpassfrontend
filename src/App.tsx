@@ -334,7 +334,7 @@ export default function App() {
                       <div className="rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3">
                         <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Secret Handling</span>
                         <p className="text-xs text-on-surface-variant leading-relaxed mt-2">
-                          FiberPass no longer displays fake client secrets in settings. App API keys are generated once inside Developer Apps and should be stored server-side only.
+                          FiberPass never displays app secrets in settings. App API keys are generated once inside Developer Apps and should be stored server-side only.
                         </p>
                       </div>
 

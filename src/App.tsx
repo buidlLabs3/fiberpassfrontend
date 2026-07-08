@@ -13,8 +13,6 @@ import {
   Cpu, 
   ShieldCheck, 
   CheckCircle2, 
-  Eye, 
-  EyeOff, 
   HelpCircle,
   Clock,
   Settings,
@@ -24,7 +22,7 @@ import {
 } from 'lucide-react';
 
 import { WalletState } from './types';
-import { fiberPassApi, getApiErrorMessage, type CreateSessionPayload } from './lib/api';
+import { fiberPassApi, getApiErrorMessage, type ApiMeta, type CreateSessionPayload } from './lib/api';
 import { connectJoyIdWallet, disconnectJoyIdWallet, getStoredJoyIdAddress, signJoyIdMessage } from './lib/joyid';
 import { useDeveloperApps } from './hooks/useDeveloperApps';
 import { useSessionsOverview } from './hooks/useSessionsOverview';
@@ -47,7 +45,8 @@ export default function App() {
   const [wallet, setWallet] = useState<WalletState>({
     connected: false,
     address: '',
-    balance: 1240.50,
+    balance: 0,
+    balanceMinor: 0,
     currency: 'USDC'
   });
 
@@ -62,10 +61,27 @@ export default function App() {
   const historySessions = sessions.historySessions;
 
   // Settings view details
-  const [apiKeyVisible, setApiKeyVisible] = useState(false);
-  const [customNetwork, setCustomNetwork] = useState('Fiber Network Testnet');
-  const [gasThreshold, setGasThreshold] = useState('15 gwei');
+  const [apiMeta, setApiMeta] = useState<ApiMeta | null>(null);
+  const [metaError, setMetaError] = useState('');
   const [autoSettleTime, setAutoSettleTime] = useState('2 hours');
+
+  useEffect(() => {
+    let active = true;
+    fiberPassApi.getMeta()
+      .then((meta) => {
+        if (active) {
+          setApiMeta(meta);
+          setMetaError('');
+        }
+      })
+      .catch((error) => {
+        if (active) setMetaError(getApiErrorMessage(error, 'Could not load API runtime metadata.'));
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!sessions.overview) return;
@@ -305,47 +321,30 @@ export default function App() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                   
-                  {/* Panel 1: Developer Access Keys */}
+                  {/* Panel 1: Developer API Keys */}
                   <div className="bg-surface-container-low/50 border border-outline-variant rounded-2xl p-6 space-y-6">
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                         <Key className="w-4.5 h-4.5" />
                       </div>
-                      <h3 className="font-bold text-on-surface">Client SDK API Credentials</h3>
+                      <h3 className="font-bold text-on-surface">Developer API Credentials</h3>
                     </div>
 
                     <div className="space-y-4">
-                      <div className="flex flex-col gap-1.5">
-                        <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Fiber Access Key (FIBER_KEY)</span>
-                        <div className="flex items-center bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden px-4 py-2.5">
-                          <input 
-                            type={apiKeyVisible ? "text" : "password"} 
-                            value="fb_live_7a3d24e930fca6823eb9118501dae"
-                            readOnly
-                            className="flex-grow bg-transparent border-none text-xs font-mono text-primary outline-none focus:ring-0 select-all"
-                          />
-                          <button 
-                            type="button"
-                            onClick={() => setApiKeyVisible(!apiKeyVisible)}
-                            className="p-1 text-on-surface-variant hover:text-primary transition-colors bg-transparent border-none cursor-pointer"
-                          >
-                            {apiKeyVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                        <span className="text-[10px] text-on-surface-variant leading-relaxed">
-                          Do not expose this key client-side. Keep it safe in server environment secrets.
-                        </span>
+                      <div className="rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3">
+                        <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Secret Handling</span>
+                        <p className="text-xs text-on-surface-variant leading-relaxed mt-2">
+                          FiberPass no longer displays fake client secrets in settings. App API keys are generated once inside Developer Apps and should be stored server-side only.
+                        </p>
                       </div>
 
-                      <div className="flex flex-col gap-1.5">
-                        <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Default Web3 Provider RPC</span>
-                        <input 
-                          type="text" 
-                          value="https://rpc.testnet.fiber.network"
-                          readOnly
-                          className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-2.5 px-4 text-xs font-mono text-on-surface focus:outline-none"
-                        />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('developer')}
+                        className="w-full bg-primary/15 text-primary border border-primary/30 rounded-xl py-2.5 px-4 text-xs font-bold uppercase tracking-wider hover:bg-primary/25 transition-colors"
+                      >
+                        Open Developer Apps
+                      </button>
                     </div>
                   </div>
 
@@ -359,35 +358,28 @@ export default function App() {
                     </div>
 
                     <div className="space-y-4">
-                      {/* Network Select */}
-                      <div className="flex flex-col gap-1.5">
-                        <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Target Settlement Chain</span>
-                        <select 
-                          value={customNetwork}
-                          onChange={(e) => setCustomNetwork(e.target.value)}
-                          className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-2.5 px-4 text-xs font-semibold text-on-surface focus:outline-none focus:border-primary cursor-pointer"
-                        >
-                          <option value="Fiber Network Testnet">Fiber Network Testnet</option>
-                          <option value="Fiber Network Mainnet">Fiber Network Mainnet</option>
-                          <option value="Base L2">Base L2 fallback settlement</option>
-                          <option value="Ethereum Mainnet">Ethereum Mainnet (L1 direct)</option>
-                        </select>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1.5 rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3">
+                          <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Fiber Network</span>
+                          <span className="font-mono text-xs text-on-surface">{apiMeta?.fiber.network ?? 'Loading...'}</span>
+                        </div>
+                        <div className="flex flex-col gap-1.5 rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3">
+                          <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Provider</span>
+                          <span className="font-mono text-xs text-on-surface">{apiMeta ? apiMeta.fiber.provider.toUpperCase() : 'Loading...'}</span>
+                        </div>
+                        <div className="flex flex-col gap-1.5 rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3">
+                          <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Mode</span>
+                          <span className="font-mono text-xs text-on-surface">{apiMeta?.mode ?? 'product'}</span>
+                        </div>
+                        <div className="flex flex-col gap-1.5 rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3">
+                          <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">RPC</span>
+                          <span className="font-mono text-xs text-on-surface">{apiMeta?.fiber.rpcConfigured ? 'configured' : 'not configured'}</span>
+                        </div>
                       </div>
 
-                      {/* Gas Limit Trigger */}
-                      <div className="flex flex-col gap-1.5">
-                        <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Max Gas Price Threshold</span>
-                        <select 
-                          value={gasThreshold}
-                          onChange={(e) => setGasThreshold(e.target.value)}
-                          className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-2.5 px-4 text-xs font-semibold text-on-surface focus:outline-none focus:border-primary cursor-pointer"
-                        >
-                          <option value="15 gwei">15 Gwei (Strictly Economic)</option>
-                          <option value="30 gwei">30 Gwei (Standard Balance)</option>
-                          <option value="75 gwei">75 Gwei (High Priority)</option>
-                          <option value="unlimited">Unlimited (Instant at all costs)</option>
-                        </select>
-                      </div>
+                      {metaError && (
+                        <p className="text-xs text-error rounded-lg border border-error/30 bg-error/10 px-3 py-2">{metaError}</p>
+                      )}
 
                       {/* Auto close session duration */}
                       <div className="flex flex-col gap-1.5">
@@ -413,11 +405,11 @@ export default function App() {
                       <h3 className="font-bold text-on-surface">Cryptographic Safeguard Controls</h3>
                     </div>
                     <p className="text-xs text-on-surface-variant leading-relaxed">
-                      FiberPass sessions employ standard client-side state encapsulation. Sessions are stored in transient memory registers, authorized through JoyID, and terminated securely back into your core wallet whenever revoked or exhausted. There are zero custodial smart contract deposits, keeping your capital 100% self-custodial at all times.
+                      FiberPass sessions are authorized through JoyID, tracked with exact minor-unit accounting, and routed through the configured Fiber provider. Pause, revoke, top up, and settlement actions are audited by the backend.
                     </p>
                     <div className="flex items-center gap-2 text-xs text-secondary font-semibold pt-1">
                       <CheckCircle2 className="w-4 h-4 text-secondary fill-secondary/10 shrink-0" />
-                      JoyID authentication and Fiber Network session routing are enabled for this demo.
+                      JoyID authentication, app-scoped API keys, charge attempt ledgers, and Fiber provider routing are enabled.
                     </div>
                   </div>
 

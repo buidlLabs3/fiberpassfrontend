@@ -140,8 +140,8 @@ export default function DashboardView({
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {activeSessions.map((session) => {
-              const spentPercentage = Math.min((session.spent / session.limit) * 100, 100);
-              const remainingBalance = Math.max(0, session.limit - session.spent);
+              const spentPercentage = session.limit > 0 ? Math.min((session.spent / session.limit) * 100, 100) : 0;
+              const remainingBalance = session.remainingBalance ?? Math.max(0, session.limit - session.spent);
               const isPaused = session.status === 'paused';
               const pendingAction = pendingSessionAction?.id === session.id ? pendingSessionAction.action : null;
               const isActionPending = Boolean(pendingAction);
@@ -205,6 +205,11 @@ export default function DashboardView({
                     <div className="grid grid-cols-2 gap-2 text-[10px] text-on-surface-variant">
                       <span className="truncate">{session.chargePolicy ?? 'App-defined charge policy'}</span>
                       <span className="font-mono text-right truncate">{session.expiryAt ? new Date(session.expiryAt).toLocaleString() : session.expiryTime}</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[10px] text-on-surface-variant">
+                      <span className="truncate">Fiber: {session.fiberStatus ?? 'pending'}</span>
+                      <span className="font-mono text-right truncate">{session.lastChargeProofId ?? session.fiberProofId ?? session.fiberProvider ?? 'no proof yet'}</span>
                     </div>
                   </div>
 

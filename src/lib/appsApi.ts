@@ -6,13 +6,19 @@ export interface AppChargeAttempt {
   appId?: string;
   apiKeyId?: string;
   amount: number;
+  amountMinor?: number;
   currency: string;
   type: string;
   status: 'pending' | 'succeeded' | 'failed';
   failureCode?: string;
   failureMessage?: string;
   resultingSpent?: number;
+  resultingSpentMinor?: number;
   remainingBalance?: number;
+  remainingBalanceMinor?: number;
+  provider?: string;
+  network?: string;
+  proofId?: string;
   createdAt: string;
 }
 

@@ -208,6 +208,7 @@ export default function DeveloperAppsView({
                           <p className="font-bold text-sm text-on-surface truncate">{attempt.type}</p>
                         </div>
                         <p className="font-mono text-[10px] text-on-surface-variant mt-1 truncate">{attempt.sessionId} / {formatDate(attempt.createdAt)}</p>
+                        {attempt.proofId && <p className="font-mono text-[10px] text-on-surface-variant mt-1 truncate">Proof: {attempt.proofId}</p>}
                         {attempt.failureMessage && <p className="text-[11px] text-error mt-1">{attempt.failureCode}: {attempt.failureMessage}</p>}
                       </div>
                       <span className={attempt.status === 'succeeded' ? 'font-mono text-xs text-secondary' : 'font-mono text-xs text-error'}>{formatAmount(attempt.amount, attempt.currency)}</span>

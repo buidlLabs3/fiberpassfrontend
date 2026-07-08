@@ -271,6 +271,9 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
                 ID: {selectedSession.id}
                 <ExternalLink className="w-3 h-3 text-outline hover:text-primary cursor-pointer" />
               </p>
+              <p className="font-mono text-[10px] text-on-surface-variant mt-1 truncate">
+                Fiber: {selectedSession.fiberStatus ?? 'unknown'} / {selectedSession.fiberProofId ?? selectedSession.lastChargeProofId ?? 'no proof yet'}
+              </p>
             </div>
 
             {/* Financial Details Box */}
@@ -292,13 +295,13 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
                 <div className="flex justify-between mb-1.5 text-[10px] font-medium text-on-surface-variant">
                   <span>Utilization</span>
                   <span className="font-mono">
-                    {Math.min((selectedSession.spent / selectedSession.limit) * 100, 100).toFixed(1)}%
+                    {(selectedSession.limit > 0 ? Math.min((selectedSession.spent / selectedSession.limit) * 100, 100) : 0).toFixed(1)}%
                   </span>
                 </div>
                 <div className="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-gradient-to-r from-primary to-secondary rounded-full" 
-                    style={{ width: `${Math.min((selectedSession.spent / selectedSession.limit) * 100, 100)}%` }}
+                    style={{ width: `${selectedSession.limit > 0 ? Math.min((selectedSession.spent / selectedSession.limit) * 100, 100) : 0}%` }}
                   />
                 </div>
               </div>
@@ -356,6 +359,9 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
                           <span className="font-semibold text-xs text-on-surface truncate">{attempt.type}</span>
                         </div>
                         <p className="font-mono text-[9px] text-on-surface-variant mt-1 truncate">{new Date(attempt.createdAt).toLocaleString()}</p>
+                        {attempt.proofId && (
+                          <p className="font-mono text-[9px] text-on-surface-variant mt-1 truncate">Proof: {attempt.proofId}</p>
+                        )}
                         {attempt.failureMessage && (
                           <p className="text-[10px] text-error mt-1 leading-relaxed">{attempt.failureCode}: {attempt.failureMessage}</p>
                         )}

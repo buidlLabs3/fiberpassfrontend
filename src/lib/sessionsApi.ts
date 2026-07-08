@@ -16,6 +16,7 @@ export interface VerifiedApp {
   trustLevel: 'verified' | 'reviewed' | 'manual';
   description: string;
   defaultCharge: number;
+  defaultChargeMinor?: number;
   chargePolicy: string;
   iconType: Session['iconType'];
   permissions: string[];
@@ -24,7 +25,9 @@ export interface VerifiedApp {
 export interface CreateSessionPolicy {
   limits: {
     min: number;
+    minMinor?: number;
     max: number;
+    maxMinor?: number;
     currency: string;
   };
   expiry: {
@@ -34,7 +37,13 @@ export interface CreateSessionPolicy {
   fees: {
     platformFeeBps: number;
     minPlatformFee: number;
+    minPlatformFeeMinor?: number;
     estimatedNetworkFee: number;
+    estimatedNetworkFeeMinor?: number;
+  };
+  fiber?: {
+    provider: 'mock' | 'rpc';
+    network: string;
   };
   verifiedApps: VerifiedApp[];
 }

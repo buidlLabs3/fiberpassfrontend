@@ -6,8 +6,15 @@ export type WalletFundingStatus = 'pending' | 'confirmed';
 export interface WalletFundingConfig {
   currency: string;
   network: string;
+  depositMode?: 'vault' | 'treasury';
   depositAddress: string;
   configured: boolean;
+  vault?: {
+    configured: boolean;
+    address?: string;
+    scriptHash?: string;
+    ownerLockHashSource?: string;
+  };
 }
 
 export interface WalletFundingRequest {
@@ -17,7 +24,13 @@ export interface WalletFundingRequest {
   amountMinor: number;
   currency: string;
   network: string;
+  depositMode?: string;
   depositAddress: string;
+  vaultScriptHash?: string;
+  vaultScriptArgs?: string;
+  vaultOwnerLockHash?: string;
+  vaultOwnerLockHashSource?: string;
+  vaultAccountIdHash?: string;
   memo: string;
   proofId?: string;
   status: WalletFundingStatus;

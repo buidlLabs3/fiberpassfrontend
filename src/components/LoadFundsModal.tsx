@@ -157,6 +157,14 @@ export default function LoadFundsModal({
                   <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Asset</span>
                   <p className="font-mono text-on-surface mt-1">{fundingConfig?.currency ?? currency}</p>
                 </div>
+                <div className="rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2">
+                  <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Mode</span>
+                  <p className="font-mono text-on-surface mt-1">{fundingConfig?.depositMode ?? 'treasury'}</p>
+                </div>
+                <div className="rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2">
+                  <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Owner</span>
+                  <p className="font-mono text-on-surface mt-1 truncate">{fundingConfig?.vault?.ownerLockHashSource ?? 'operator'}</p>
+                </div>
               </div>
 
               {!configReady && (
@@ -260,7 +268,7 @@ export default function LoadFundsModal({
                     <p className="font-mono text-[10px] text-on-surface-variant mt-1 truncate">{request.id} / {formatDate(request.confirmedAt ?? request.createdAt)}</p>
                   </div>
                   <span className={request.status === 'confirmed' ? 'text-[10px] uppercase font-bold text-secondary' : 'text-[10px] uppercase font-bold text-primary'}>
-                    {request.status}
+                    {(request.depositMode ?? 'treasury') + ' / ' + request.status}
                   </span>
                 </button>
               ))}

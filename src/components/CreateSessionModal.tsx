@@ -28,6 +28,7 @@ import {
 import { type CreateSessionPayload, type CreateSessionPolicy, type VerifiedApp, sessionsApi } from '../lib/sessionsApi';
 import { FIBER_CKB_ADDRESS_ERROR, isFiberCkbAddress } from '../lib/fiberAddress';
 import { type Session } from '../types';
+import { formatCurrencyAmount } from '../lib/currency';
 
 type FlowStep = 'details' | 'review' | 'success';
 type AppMode = 'verified' | 'manual';
@@ -42,9 +43,9 @@ interface CreateSessionModalProps {
 
 const FALLBACK_POLICY: CreateSessionPolicy = {
   limits: {
-    min: 0.05,
-    max: 500,
-    currency: 'USDC'
+    min: 0.01,
+    max: 100000,
+    currency: 'CKB'
   },
   expiry: {
     minMinutes: 5,
@@ -58,10 +59,10 @@ const FALLBACK_POLICY: CreateSessionPolicy = {
   verifiedApps: []
 };
 
-const LIMIT_PRESETS = [0.5, 1, 2, 5, 10];
+const LIMIT_PRESETS = [0.05, 0.1, 0.25, 0.5, 1];
 
-function formatUsd(value: number, digits = 2): string {
-  return '$' + value.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+function formatAmount(value: number, currency: string, maxDigits?: number): string {
+  return formatCurrencyAmount(value, currency, maxDigits);
 }
 
 function toDateTimeLocal(date: Date): string {
@@ -97,7 +98,7 @@ export default function CreateSessionModal({
   const [manualServiceName, setManualServiceName] = useState('');
   const [manualServiceAddress, setManualServiceAddress] = useState('');
   const [spendingLimit, setSpendingLimit] = useState('2.00');
-  const [currency, setCurrency] = useState('USDC');
+  const [currency, setCurrency] = useState('CKB');
   const [expiryDateTime, setExpiryDateTime] = useState(dateFromNow(24));
   const [autoMicroCharges, setAutoMicroCharges] = useState(true);
   const [singleUse, setSingleUse] = useState(false);
@@ -139,7 +140,7 @@ export default function CreateSessionModal({
     setManualServiceName('');
     setManualServiceAddress('');
     setSpendingLimit('2.00');
-    setCurrency('USDC');
+    setCurrency('CKB');
     setExpiryDateTime(dateFromNow(24));
     setAutoMicroCharges(true);
     setSingleUse(false);
@@ -218,12 +219,12 @@ export default function CreateSessionModal({
     }
 
     if (!Number.isFinite(limitNum) || limitNum < resolvedPolicy.limits.min || limitNum > resolvedPolicy.limits.max) {
-      setErrorMessage('Limit must be between ' + formatUsd(resolvedPolicy.limits.min) + ' and ' + formatUsd(resolvedPolicy.limits.max) + '.');
+      setErrorMessage('Limit must be between ' + formatAmount(resolvedPolicy.limits.min, currency) + ' and ' + formatAmount(resolvedPolicy.limits.max, currency) + '.');
       return false;
     }
 
     if (limitNum > walletBalance) {
-      setErrorMessage('Insufficient wallet balance. Your maximum pass limit is ' + formatUsd(walletBalance) + '.');
+      setErrorMessage('Insufficient wallet balance. Your maximum pass limit is ' + formatAmount(walletBalance, currency) + '.');
       return false;
     }
 
@@ -288,10 +289,10 @@ export default function CreateSessionModal({
 
   const detailRows = [
     ['App', currentAppName || 'Not selected'],
-    ['Limit', formatUsd(normalizedLimit)],
+    ['Limit', formatAmount(normalizedLimit, currency)],
     ['Expiry', formatExpiry(expiryDateTime)],
-    ['Platform fee estimate', formatUsd(platformFeeEstimate, 3)],
-    ['Fiber network fee estimate', formatUsd(networkFeeEstimate, 3)]
+    ['Platform fee estimate', formatAmount(platformFeeEstimate, currency, 8)],
+    ['Fiber network fee estimate', formatAmount(networkFeeEstimate, currency, 8)]
   ];
 
   return (
@@ -426,7 +427,7 @@ export default function CreateSessionModal({
                               </div>
                               <div className="space-y-2 text-xs text-on-surface-variant">
                                 <div className="flex justify-between gap-3"><span>Category</span><span className="font-semibold text-on-surface">{selectedApp.category}</span></div>
-                                <div className="flex justify-between gap-3"><span>Default charge</span><span className="font-mono text-secondary">{formatUsd(selectedApp.defaultCharge, 3)}</span></div>
+                                <div className="flex justify-between gap-3"><span>Default charge</span><span className="font-mono text-secondary">{formatAmount(selectedApp.defaultCharge, currency, 8)}</span></div>
                                 <div className="flex justify-between gap-3"><span>Fiber address</span><span className="font-mono text-[10px] text-on-surface truncate max-w-[180px]">{selectedApp.serviceAddress}</span></div>
                               </div>
                               <div className="border-t border-outline-variant/50 pt-3">
@@ -480,7 +481,7 @@ export default function CreateSessionModal({
                     <div className="flex flex-col gap-3">
                       <div className="flex justify-between items-end">
                         <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="spending-limit">Spending Limit</label>
-                        <span className="font-mono text-[10px] text-outline font-semibold">Balance: {formatUsd(walletBalance)} {currency}</span>
+                        <span className="font-mono text-[10px] text-outline font-semibold">Balance: {formatAmount(walletBalance, currency)}</span>
                       </div>
 
                       <div className="flex items-center bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/50 transition-all">
@@ -511,7 +512,7 @@ export default function CreateSessionModal({
                           </button>
                         ))}
                       </div>
-                      <p className="text-[11px] text-on-surface-variant">Allowed range: {formatUsd(resolvedPolicy.limits.min)} to {formatUsd(resolvedPolicy.limits.max)}.</p>
+                      <p className="text-[11px] text-on-surface-variant">Allowed range: {formatAmount(resolvedPolicy.limits.min, currency)} to {formatAmount(resolvedPolicy.limits.max, currency)}.</p>
                     </div>
 
                     <div className="flex flex-col gap-3">
@@ -571,17 +572,17 @@ export default function CreateSessionModal({
                     <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-4">
                       <Wallet className="w-4 h-4 text-primary mb-2" />
                       <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">Available Fiber Balance</p>
-                      <p className="font-mono text-lg font-bold text-on-surface mt-1">{formatUsd(walletBalance)}</p>
+                      <p className="font-mono text-lg font-bold text-on-surface mt-1">{formatAmount(walletBalance, currency)}</p>
                     </div>
                     <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-4">
                       <ShieldCheck className="w-4 h-4 text-secondary mb-2" />
                       <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">Platform Fee Estimate</p>
-                      <p className="font-mono text-lg font-bold text-on-surface mt-1">{formatUsd(platformFeeEstimate, 3)}</p>
+                      <p className="font-mono text-lg font-bold text-on-surface mt-1">{formatAmount(platformFeeEstimate, currency, 8)}</p>
                     </div>
                     <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-4">
                       <CalendarClock className="w-4 h-4 text-primary mb-2" />
                       <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">Network Fee Estimate</p>
-                      <p className="font-mono text-lg font-bold text-on-surface mt-1">{formatUsd(networkFeeEstimate, 3)}</p>
+                      <p className="font-mono text-lg font-bold text-on-surface mt-1">{formatAmount(networkFeeEstimate, currency, 8)}</p>
                     </div>
                   </section>
                 </>
@@ -603,7 +604,7 @@ export default function CreateSessionModal({
                       ))}
                       <div className="flex justify-between gap-4 text-sm pt-2">
                         <span className="text-on-surface-variant">Estimated total impact</span>
-                        <span className="font-mono font-bold text-primary text-right">{formatUsd(totalEstimatedReserve, 3)}</span>
+                        <span className="font-mono font-bold text-primary text-right">{formatAmount(totalEstimatedReserve, currency, 8)}</span>
                       </div>
                     </div>
                   </div>

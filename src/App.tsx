@@ -49,10 +49,10 @@ export default function App() {
     connected: false,
     address: '',
     authProvider: 'joyid',
-    addressType: 'evm',
+    addressType: 'ckb',
     balance: 0,
     balanceMinor: 0,
-    currency: 'USDC'
+    currency: 'CKB'
   });
 
   const [apiError, setApiError] = useState('');
@@ -201,7 +201,7 @@ export default function App() {
         connected: Boolean(token),
         address: storedAddress,
         authProvider: 'joyid',
-        addressType: 'evm'
+        addressType: 'ckb'
       }));
     }
 
@@ -294,6 +294,23 @@ export default function App() {
     }
   };
 
+  const handleSyncWalletFunding = async () => {
+    setFundingLoading(true);
+    try {
+      const fundingOverview = await fiberPassApi.syncWalletFunding();
+      setFundingConfig(fundingOverview.config);
+      setFundingRequests(fundingOverview.requests);
+      await sessions.refresh();
+      setFundingError('');
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Could not sync CKB vault deposits.');
+      setFundingError(message);
+      throw new Error(message);
+    } finally {
+      setFundingLoading(false);
+    }
+  };
+
   // Top Up an active session (Allocate +$1.00)
   const handleTopUpSession = async (id: string) => {
     await runSessionAction(id, 'top-up', () => sessions.topUpSession(id, 1));
@@ -327,7 +344,7 @@ export default function App() {
           walletConnected={wallet.connected}
           walletAddress={wallet.address}
           walletAuthProvider={wallet.authProvider ?? 'joyid'}
-          walletAddressType={wallet.addressType ?? 'evm'}
+          walletAddressType={wallet.addressType ?? 'ckb'}
           authLoading={authLoading}
         />
       )}
@@ -344,7 +361,7 @@ export default function App() {
             onExitDapp={handleExitDapp}
             walletAddress={wallet.address}
             walletAuthProvider={wallet.authProvider ?? 'joyid'}
-            walletAddressType={wallet.addressType ?? 'evm'}
+            walletAddressType={wallet.addressType ?? 'ckb'}
             walletConnected={wallet.connected}
             onConnectWallet={handleConnectWallet}
             authLoading={authLoading}
@@ -522,6 +539,7 @@ export default function App() {
             error={fundingError}
             onCreateFundingRequest={handleCreateFundingRequest}
             onConfirmFundingRequest={handleConfirmFundingRequest}
+            onSyncFunding={handleSyncWalletFunding}
           />
 
         </div>

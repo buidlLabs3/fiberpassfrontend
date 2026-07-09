@@ -75,7 +75,7 @@ export interface WalletState {
   connected: boolean;
   address: string;
   authProvider?: 'joyid';
-  addressType?: 'evm';
+  addressType?: 'ckb' | 'evm';
   balance: number;
   balanceMinor?: number;
   currency: string;

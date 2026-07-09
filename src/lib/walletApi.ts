@@ -9,6 +9,14 @@ export interface WalletFundingConfig {
   depositMode?: 'vault' | 'treasury';
   depositAddress: string;
   configured: boolean;
+  minAmount: number;
+  minAmountMinor: number;
+  maxAmount: number;
+  maxAmountMinor: number;
+  chain?: {
+    rpcConfigured: boolean;
+    indexerConfigured: boolean;
+  };
   vault?: {
     configured: boolean;
     address?: string;
@@ -33,6 +41,13 @@ export interface WalletFundingRequest {
   vaultAccountIdHash?: string;
   memo: string;
   proofId?: string;
+  chainTxHash?: string;
+  chainOutputIndex?: string;
+  chainOutPoint?: string;
+  chainBlockHash?: string;
+  chainBlockNumber?: string;
+  chainCapacityShannons?: number;
+  chainConfirmedAt?: string;
   status: WalletFundingStatus;
   createdAt: string;
   confirmedAt?: string;
@@ -56,5 +71,11 @@ export const walletApi = {
     apiRequest<SessionsOverview>('/wallet/funding/' + encodeURIComponent(fundingId) + '/confirm', {
       method: 'POST',
       body: JSON.stringify(payload)
+    }),
+
+  syncWalletFunding: () =>
+    apiRequest<WalletFundingOverview>('/wallet/funding/sync', {
+      method: 'POST',
+      body: JSON.stringify({})
     })
 };

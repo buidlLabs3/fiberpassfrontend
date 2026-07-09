@@ -24,6 +24,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { Session } from '../types';
+import { formatCurrencyAmount } from '../lib/currency';
 
 interface HistoryViewProps {
   historySessions: Session[];
@@ -55,9 +56,9 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
     if (!session) return;
     
     // Construct CSV string from the session ledger shown in the API response.
-    const csvHeaders = "Log ID,Action,Timestamp,Charged Amount (USDC)\n";
-    const csvRows = session.logs.map(log => 
-      `"${log.id}","${log.type}","${log.timestamp}",$${log.amount.toFixed(3)}`
+    const csvHeaders = "Log ID,Action,Timestamp,Charged Amount (" + session.currency + ")\n";
+    const csvRows = session.logs.map(log =>
+      `"${log.id}","${log.type}","${log.timestamp}","${formatCurrencyAmount(log.amount, session.currency, 8)}"`
     ).join("\n");
     
     const csvContent = "data:text/csv;charset=utf-8," + csvHeaders + csvRows;
@@ -222,7 +223,7 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
 
                         {/* Spent */}
                         <td className="p-4 font-mono font-medium text-secondary">
-                          ${session.spent.toFixed(2)} <span className="text-[10px] text-on-surface-variant ml-0.5">{session.currency}</span>
+                          {formatCurrencyAmount(session.spent, session.currency)}
                         </td>
 
                         {/* Duration */}
@@ -280,13 +281,13 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
             <div className="p-6 flex flex-col gap-3.5 border-b border-outline-variant/50 relative z-10 bg-surface-container-low/30">
               <div className="flex justify-between items-end text-xs">
                 <span className="text-on-surface-variant font-medium uppercase tracking-wider text-[10px]">Total Authorized</span>
-                <span className="font-mono font-semibold text-on-surface">${selectedSession.limit.toFixed(2)}</span>
+                <span className="font-mono font-semibold text-on-surface">{formatCurrencyAmount(selectedSession.limit, selectedSession.currency)}</span>
               </div>
               
               <div className="flex justify-between items-end text-xs">
                 <span className="text-on-surface-variant font-medium uppercase tracking-wider text-[10px]">Actual Settle Spent</span>
                 <span className="font-mono font-bold text-secondary text-base">
-                  ${selectedSession.spent.toFixed(2)} <span className="text-xs font-normal text-on-surface-variant">{selectedSession.currency}</span>
+                  {formatCurrencyAmount(selectedSession.spent, selectedSession.currency)}
                 </span>
               </div>
 
@@ -332,7 +333,7 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
                         </span>
                       </div>
                       <span className="font-mono font-semibold text-secondary text-xs shrink-0 pl-2">
-                        +${log.amount.toFixed(3)}
+                        +{formatCurrencyAmount(log.amount, selectedSession.currency, 8)}
                       </span>
                     </div>
                   ))
@@ -367,7 +368,7 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
                         )}
                       </div>
                       <span className={attempt.status === 'succeeded' ? 'font-mono font-semibold text-secondary text-xs shrink-0' : 'font-mono font-semibold text-error text-xs shrink-0'}>
-                        {attempt.status === 'succeeded' ? '+' : ''}{'$' + attempt.amount.toFixed(3)}
+                        {attempt.status === 'succeeded' ? '+' : ''}{formatCurrencyAmount(attempt.amount, attempt.currency, 8)}
                       </span>
                     </div>
                   ))}

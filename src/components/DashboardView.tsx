@@ -22,6 +22,7 @@ import {
   Wallet
 } from 'lucide-react';
 import { Session } from '../types';
+import { formatCurrencyAmount } from '../lib/currency';
 
 interface DashboardViewProps {
   activeSessions: Session[];
@@ -83,7 +84,7 @@ export default function DashboardView({
             <div className="flex flex-col gap-1 bg-surface-container-low px-5 py-3 border border-outline-variant rounded-xl shadow-md min-w-[160px]">
               <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Wallet Balance</span>
               <span className="font-mono text-xl font-semibold text-primary">
-                {walletBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {walletCurrency}
+                {formatCurrencyAmount(walletBalance, walletCurrency)}
               </span>
               <button
                 type="button"
@@ -98,7 +99,7 @@ export default function DashboardView({
             <div className="flex flex-col gap-1 bg-surface-container-low px-5 py-3 border border-outline-variant rounded-xl shadow-md min-w-[160px]">
               <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Active Pass Limits</span>
               <span className="font-mono text-xl font-semibold text-secondary">
-                {'$' + totalActivePassValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatCurrencyAmount(totalActivePassValue, walletCurrency)}
               </span>
             </div>
           </div>
@@ -193,8 +194,8 @@ export default function DashboardView({
                     <div className="flex justify-between items-end">
                       <span className="text-xs text-on-surface-variant font-medium">Spent</span>
                       <div className="font-mono text-xs text-right">
-                        <span className="text-on-surface font-bold">{'$' + session.spent.toFixed(2)}</span>
-                        <span className="text-outline"> / {'$' + session.limit.toFixed(2)} {session.currency}</span>
+                        <span className="text-on-surface font-bold">{formatCurrencyAmount(session.spent, session.currency)}</span>
+                        <span className="text-outline"> / {formatCurrencyAmount(session.limit, session.currency)}</span>
                       </div>
                     </div>
 
@@ -212,7 +213,7 @@ export default function DashboardView({
 
                     <div className="flex justify-between items-center rounded-lg border border-outline-variant/50 bg-surface-container-high/40 px-3 py-2 text-[11px]">
                       <span className="text-on-surface-variant font-semibold uppercase tracking-wider">Remaining</span>
-                      <span className="font-mono text-secondary font-bold">{'$' + remainingBalance.toFixed(2)} {session.currency}</span>
+                      <span className="font-mono text-secondary font-bold">{formatCurrencyAmount(remainingBalance, session.currency)}</span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-[10px] text-on-surface-variant">
@@ -231,7 +232,7 @@ export default function DashboardView({
                       onClick={() => onTopUpSession(session.id)}
                       disabled={isActionPending}
                       className="bg-surface-container hover:bg-primary/10 border border-outline-variant hover:border-primary/40 text-primary transition-all duration-200 rounded-lg py-2 text-xs font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-                      title="Top Up session with $1.00"
+                      title={"Top up session with 1.00 " + walletCurrency}
                     >
                       {pendingAction === 'top-up' ? 'Topping...' : 'Top Up'}
                     </button>

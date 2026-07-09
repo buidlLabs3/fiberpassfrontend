@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { CheckCircle2, Code, Copy, KeyRound, LoaderCircle, Plus, RefreshCw, ShieldCheck, XCircle } from 'lucide-react';
 import { type DeveloperApp } from '../lib/appsApi';
 import { FIBER_CKB_ADDRESS_ERROR, isFiberCkbAddress } from '../lib/fiberAddress';
+import { formatCurrencyAmount } from '../lib/currency';
 
 interface DeveloperAppsViewProps {
   apps: DeveloperApp[];
@@ -25,7 +26,7 @@ function formatDate(value?: string): string {
 }
 
 function formatAmount(value: number, currency: string): string {
-  return '$' + value.toFixed(3) + ' ' + currency;
+  return formatCurrencyAmount(value, currency, 8);
 }
 
 export default function DeveloperAppsView({

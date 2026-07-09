@@ -228,7 +228,7 @@ export default function LandingPage({
                     Streaming...
                   </span>
                   <span className="text-secondary font-bold font-mono">
-                    {streamProgress.toFixed(2)} / 5.00 USDC
+                    {streamProgress.toFixed(2)} / 5.00 CKB
                   </span>
                 </div>
                 <div className="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">

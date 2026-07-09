@@ -1,5 +1,6 @@
 import { type WalletState } from '../types';
 import { apiRequest } from './apiClient';
+import { type JoyIdSignaturePayload } from './joyid';
 
 export interface AuthChallenge {
   challengeId: string;
@@ -11,7 +12,7 @@ export interface AuthChallenge {
 export interface AuthVerifyPayload {
   challengeId: string;
   address: string;
-  signature: string;
+  signature: JoyIdSignaturePayload;
 }
 
 export interface AuthVerifyResponse {

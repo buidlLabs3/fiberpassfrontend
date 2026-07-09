@@ -107,6 +107,7 @@ export default function App() {
     setApiError('');
 
     try {
+      await fiberPassApi.getMeta();
       const address = await connectJoyIdWallet();
       const challenge = await fiberPassApi.createAuthChallenge(address);
       const signature = await signJoyIdMessage(challenge.message, address);

@@ -48,7 +48,17 @@ export function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError;
 }
 
+function apiUnavailableMessage(): string {
+  return 'Cannot reach the FiberPass API at ' + API_URL + '. Start the backend, then check VITE_API_URL and backend CORS settings.';
+}
+
+function isFetchNetworkError(error: unknown): boolean {
+  return error instanceof TypeError && /fetch|network|load failed/i.test(error.message);
+}
+
 export function getApiErrorMessage(error: unknown, fallback = 'FiberPass API request failed.'): string {
+  if (error instanceof ApiError) return error.message;
+  if (isFetchNetworkError(error)) return apiUnavailableMessage();
   if (error instanceof Error) return error.message;
   return fallback;
 }
@@ -80,10 +90,20 @@ export async function apiRequest<T>(requestPath: string, options: ApiRequestOpti
     headers.Authorization = 'Bearer ' + token;
   }
 
-  const response = await fetch(API_URL + requestPath, {
-    ...requestOptions,
-    headers
-  });
+  let response: Response;
+  try {
+    response = await fetch(API_URL + requestPath, {
+      ...requestOptions,
+      headers
+    });
+  } catch (error) {
+    throw new ApiError(
+      0,
+      'API_NETWORK_ERROR',
+      apiUnavailableMessage(),
+      error instanceof Error ? { cause: error.message } : undefined
+    );
+  }
 
   const data = parseBody(await response.text());
 

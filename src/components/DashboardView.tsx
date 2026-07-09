@@ -18,13 +18,15 @@ import {
   Pause,
   AlertCircle,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  Wallet
 } from 'lucide-react';
 import { Session } from '../types';
 
 interface DashboardViewProps {
   activeSessions: Session[];
   walletBalance: number;
+  walletCurrency: string;
   totalActivePassValue: number;
   isLoading?: boolean;
   pendingSessionAction?: { id: string; action: 'top-up' | 'pause' | 'revoke' | 'close' } | null;
@@ -33,11 +35,13 @@ interface DashboardViewProps {
   onRevokeSession: (id: string) => void;
   onCloseSession: (id: string) => void;
   onCreateSessionClick: () => void;
+  onLoadFundsClick: () => void;
 }
 
 export default function DashboardView({
   activeSessions,
   walletBalance,
+  walletCurrency,
   totalActivePassValue,
   isLoading = false,
   pendingSessionAction = null,
@@ -45,7 +49,8 @@ export default function DashboardView({
   onTogglePauseSession,
   onRevokeSession,
   onCloseSession,
-  onCreateSessionClick
+  onCreateSessionClick,
+  onLoadFundsClick
 }: DashboardViewProps) {
   const renderSessionIcon = (type: string) => {
     switch (type) {
@@ -78,8 +83,16 @@ export default function DashboardView({
             <div className="flex flex-col gap-1 bg-surface-container-low px-5 py-3 border border-outline-variant rounded-xl shadow-md min-w-[160px]">
               <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Wallet Balance</span>
               <span className="font-mono text-xl font-semibold text-primary">
-                {walletBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC
+                {walletBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {walletCurrency}
               </span>
+              <button
+                type="button"
+                onClick={onLoadFundsClick}
+                className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-primary hover:text-secondary transition-colors"
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                Load Funds
+              </button>
             </div>
 
             <div className="flex flex-col gap-1 bg-surface-container-low px-5 py-3 border border-outline-variant rounded-xl shadow-md min-w-[160px]">

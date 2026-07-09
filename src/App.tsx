@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Bolt, 
   Wallet, 
@@ -23,6 +23,7 @@ import {
 
 import { WalletState } from './types';
 import { fiberPassApi, getApiErrorMessage, type ApiMeta, type CreateSessionPayload } from './lib/api';
+import { type WalletFundingConfig, type WalletFundingRequest } from './lib/walletApi';
 import { connectJoyIdWallet, disconnectJoyIdWallet, getStoredJoyIdAddress, signJoyIdMessage } from './lib/joyid';
 import { useDeveloperApps } from './hooks/useDeveloperApps';
 import { useSessionsOverview } from './hooks/useSessionsOverview';
@@ -34,12 +35,14 @@ import DashboardView from './components/DashboardView';
 import HistoryView from './components/HistoryView';
 import CreateSessionModal from './components/CreateSessionModal';
 import DeveloperAppsView from './components/DeveloperAppsView';
+import LoadFundsModal from './components/LoadFundsModal';
 
 export default function App() {
   // Navigation states
   const [currentView, setCurrentView] = useState<'landing' | 'app'>('landing');
   const [activeTab, setActiveTab] = useState<'active' | 'history' | 'developer' | 'settings'>('active');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isFundingModalOpen, setIsFundingModalOpen] = useState(false);
 
   // Wallet and balance state
   const [wallet, setWallet] = useState<WalletState>({
@@ -56,6 +59,10 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [createSessionLoading, setCreateSessionLoading] = useState(false);
   const [pendingSessionAction, setPendingSessionAction] = useState<{ id: string; action: 'top-up' | 'pause' | 'revoke' | 'close' } | null>(null);
+  const [fundingConfig, setFundingConfig] = useState<WalletFundingConfig | null>(null);
+  const [fundingRequests, setFundingRequests] = useState<WalletFundingRequest[]>([]);
+  const [fundingLoading, setFundingLoading] = useState(false);
+  const [fundingError, setFundingError] = useState('');
 
   const sessions = useSessionsOverview(currentView === 'app' && wallet.connected);
   const developerApps = useDeveloperApps(currentView === 'app' && wallet.connected && activeTab === 'developer');
@@ -100,6 +107,40 @@ export default function App() {
     setApiError(message);
     alert(message);
   };
+
+  const loadWalletFunding = useCallback(async () => {
+    if (!wallet.connected) {
+      setFundingConfig(null);
+      setFundingRequests([]);
+      setFundingError('');
+      return null;
+    }
+
+    setFundingLoading(true);
+    try {
+      const fundingOverview = await fiberPassApi.getWalletFunding();
+      setFundingConfig(fundingOverview.config);
+      setFundingRequests(fundingOverview.requests);
+      setFundingError('');
+      return fundingOverview;
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Could not load wallet funding state.');
+      setFundingError(message);
+      return null;
+    } finally {
+      setFundingLoading(false);
+    }
+  }, [wallet.connected]);
+
+  useEffect(() => {
+    if (currentView === 'app' && wallet.connected) {
+      void loadWalletFunding();
+    } else {
+      setFundingConfig(null);
+      setFundingRequests([]);
+      setFundingError('');
+    }
+  }, [currentView, loadWalletFunding, wallet.connected]);
 
   // Connect with JoyID and establish a verified FiberPass API session
   const handleConnectWallet = async () => {
@@ -221,6 +262,38 @@ export default function App() {
     }
   };
 
+  const handleCreateFundingRequest = async (amount: number) => {
+    setFundingLoading(true);
+    try {
+      const request = await fiberPassApi.createWalletFundingRequest({ amount });
+      setFundingRequests(prev => [request, ...prev.filter(item => item.id !== request.id)]);
+      setFundingError('');
+      return request;
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Could not create wallet funding request.');
+      setFundingError(message);
+      throw new Error(message);
+    } finally {
+      setFundingLoading(false);
+    }
+  };
+
+  const handleConfirmFundingRequest = async (fundingId: string, proofId: string) => {
+    setFundingLoading(true);
+    try {
+      await fiberPassApi.confirmWalletFundingRequest(fundingId, { proofId });
+      await sessions.refresh();
+      await loadWalletFunding();
+      setFundingError('');
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Could not confirm wallet funding.');
+      setFundingError(message);
+      throw new Error(message);
+    } finally {
+      setFundingLoading(false);
+    }
+  };
+
   // Top Up an active session (Allocate +$1.00)
   const handleTopUpSession = async (id: string) => {
     await runSessionAction(id, 'top-up', () => sessions.topUpSession(id, 1));
@@ -290,6 +363,7 @@ export default function App() {
               <DashboardView 
                 activeSessions={activeSessions}
                 walletBalance={wallet.balance}
+                walletCurrency={wallet.currency}
                 totalActivePassValue={totalActivePassValue}
                 isLoading={sessions.isLoading}
                 pendingSessionAction={pendingSessionAction}
@@ -298,6 +372,7 @@ export default function App() {
                 onRevokeSession={handleRevokeSession}
                 onCloseSession={handleCloseSession}
                 onCreateSessionClick={() => setIsModalOpen(true)}
+                onLoadFundsClick={() => setIsFundingModalOpen(true)}
               />
             )}
 
@@ -435,6 +510,18 @@ export default function App() {
             onCreateSession={handleCreateSession}
             walletBalance={wallet.balance}
             isSubmitting={createSessionLoading}
+          />
+
+          <LoadFundsModal
+            isOpen={isFundingModalOpen}
+            onClose={() => setIsFundingModalOpen(false)}
+            currency={wallet.currency}
+            fundingConfig={fundingConfig}
+            fundingRequests={fundingRequests}
+            isLoading={fundingLoading}
+            error={fundingError}
+            onCreateFundingRequest={handleCreateFundingRequest}
+            onConfirmFundingRequest={handleConfirmFundingRequest}
           />
 
         </div>

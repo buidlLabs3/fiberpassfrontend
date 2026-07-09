@@ -26,6 +26,7 @@ import {
   X
 } from 'lucide-react';
 import { type CreateSessionPayload, type CreateSessionPolicy, type VerifiedApp, sessionsApi } from '../lib/sessionsApi';
+import { FIBER_CKB_ADDRESS_ERROR, isFiberCkbAddress } from '../lib/fiberAddress';
 import { type Session } from '../types';
 
 type FlowStep = 'details' | 'review' | 'success';
@@ -150,9 +151,11 @@ export default function CreateSessionModal({
     sessionsApi.getCreatePolicy()
       .then((nextPolicy) => {
         if (!isMounted) return;
+        const firstVerifiedApp = nextPolicy.verifiedApps[0];
         setPolicy(nextPolicy);
         setCurrency(nextPolicy.limits.currency);
-        setSelectedAppId(nextPolicy.verifiedApps[0]?.id ?? '');
+        setSelectedAppId(firstVerifiedApp?.id ?? '');
+        setAppMode(firstVerifiedApp ? 'verified' : 'manual');
       })
       .catch((error) => {
         if (!isMounted) return;
@@ -192,7 +195,7 @@ export default function CreateSessionModal({
 
   const currentAppName = appMode === 'verified' ? selectedApp?.name ?? '' : manualServiceName.trim();
   const currentServiceAddress = appMode === 'verified' ? selectedApp?.serviceAddress ?? '' : manualServiceAddress.trim();
-  const currentChargePolicy = appMode === 'verified' ? selectedApp?.chargePolicy : autoMicroCharges ? 'Manual app may charge until the pass limit is reached.' : 'Manual app can be charged once after owner action.';
+  const currentChargePolicy = appMode === 'verified' ? selectedApp?.chargePolicy : autoMicroCharges ? 'Manual Fiber app may charge until the pass limit is reached.' : 'Manual Fiber app can be charged once after owner action.';
 
   const validateDetails = (): boolean => {
     setErrorMessage('');
@@ -208,10 +211,8 @@ export default function CreateSessionModal({
         return false;
       }
 
-      const isENS = manualServiceAddress.endsWith('.eth');
-      const isHex = manualServiceAddress.startsWith('0x') && manualServiceAddress.length === 42;
-      if (!isENS && !isHex) {
-        setErrorMessage('Enter a valid app address or ENS name for manual mode.');
+      if (!isFiberCkbAddress(manualServiceAddress)) {
+        setErrorMessage(FIBER_CKB_ADDRESS_ERROR);
         return false;
       }
     }
@@ -374,7 +375,7 @@ export default function CreateSessionModal({
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
                             <input
                               type="text"
-                              placeholder={policyLoading ? 'Loading apps...' : 'Search verified apps'}
+                              placeholder={policyLoading ? 'Loading apps...' : 'Search verified Fiber apps'}
                               value={appSearch}
                               onChange={(event) => setAppSearch(event.target.value)}
                               className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 pl-10 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
@@ -384,7 +385,7 @@ export default function CreateSessionModal({
                           <div className="grid gap-2 max-h-[260px] overflow-y-auto pr-1">
                             {filteredApps.length === 0 ? (
                               <div className="border border-outline-variant border-dashed rounded-xl p-4 text-sm text-on-surface-variant">
-                                No verified apps match this search.
+                                {verifiedApps.length === 0 ? 'No verified Fiber apps are available yet. Use manual mode with a CKB address.' : 'No verified Fiber apps match this search.'}
                               </div>
                             ) : filteredApps.map((app) => (
                               <button
@@ -426,7 +427,7 @@ export default function CreateSessionModal({
                               <div className="space-y-2 text-xs text-on-surface-variant">
                                 <div className="flex justify-between gap-3"><span>Category</span><span className="font-semibold text-on-surface">{selectedApp.category}</span></div>
                                 <div className="flex justify-between gap-3"><span>Default charge</span><span className="font-mono text-secondary">{formatUsd(selectedApp.defaultCharge, 3)}</span></div>
-                                <div className="flex justify-between gap-3"><span>Service address</span><span className="font-mono text-[10px] text-on-surface truncate max-w-[180px]">{selectedApp.serviceAddress}</span></div>
+                                <div className="flex justify-between gap-3"><span>Fiber address</span><span className="font-mono text-[10px] text-on-surface truncate max-w-[180px]">{selectedApp.serviceAddress}</span></div>
                               </div>
                               <div className="border-t border-outline-variant/50 pt-3">
                                 <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2">Requested Permissions</p>
@@ -458,13 +459,13 @@ export default function CreateSessionModal({
                           />
                         </div>
                         <div className="flex flex-col gap-1.5">
-                          <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="manual-service-address">App Address</label>
+                          <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="manual-service-address">Fiber App Address</label>
                           <div className="relative">
                             <Link2 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-outline-variant w-4 h-4" />
                             <input
                               id="manual-service-address"
                               type="text"
-                              placeholder="0x... or app.eth"
+                              placeholder="ckt1... or ckb1..."
                               value={manualServiceAddress}
                               onChange={(event) => setManualServiceAddress(event.target.value)}
                               className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 pl-10 pr-4 text-sm font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"

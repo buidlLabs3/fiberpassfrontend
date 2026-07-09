@@ -148,7 +148,7 @@ export default function LandingPage({
             </div>
             <h3 className="text-xl font-bold text-on-surface">UX Friction</h3>
             <p className="text-on-surface-variant text-sm leading-relaxed">
-              Constant MetaMask popups for tiny actions break user flow and immersion in your application.
+              Constant wallet confirmations for tiny actions break user flow and immersion in your application.
             </p>
           </div>
 
@@ -159,7 +159,7 @@ export default function LandingPage({
             </div>
             <h3 className="text-xl font-bold text-on-surface">Gas Costs</h3>
             <p className="text-on-surface-variant text-sm leading-relaxed">
-              Paying base gas fees for micro-interactions makes low-cost services economically unviable.
+              Paying full settlement costs for every micro-interaction makes low-cost services economically unviable.
             </p>
           </div>
 
@@ -195,7 +195,7 @@ export default function LandingPage({
               </div>
               <h3 className="text-xl font-bold text-on-surface">Set Limit</h3>
               <p className="text-on-surface-variant text-sm leading-relaxed">
-                User defines a strict spending cap and time bound for the session securely on-chain.
+                User defines a strict spending cap and time bound for the Fiber payment session.
               </p>
             </div>
 

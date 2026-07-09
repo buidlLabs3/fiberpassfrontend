@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { CheckCircle2, Code, Copy, KeyRound, LoaderCircle, Plus, RefreshCw, ShieldCheck, XCircle } from 'lucide-react';
 import { type DeveloperApp } from '../lib/appsApi';
+import { FIBER_CKB_ADDRESS_ERROR, isFiberCkbAddress } from '../lib/fiberAddress';
 
 interface DeveloperAppsViewProps {
   apps: DeveloperApp[];
@@ -49,10 +50,13 @@ export default function DeveloperAppsView({
     event.preventDefault();
     setFormError('');
 
-    const isENS = serviceAddress.endsWith('.eth');
-    const isHex = serviceAddress.startsWith('0x') && serviceAddress.length === 42;
-    if (!name.trim() || (!isENS && !isHex)) {
-      setFormError('Enter an app name and valid app address or ENS name.');
+    if (!name.trim()) {
+      setFormError('Enter an app name.');
+      return;
+    }
+
+    if (!isFiberCkbAddress(serviceAddress)) {
+      setFormError(FIBER_CKB_ADDRESS_ERROR);
       return;
     }
 
@@ -115,8 +119,8 @@ export default function DeveloperAppsView({
             <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Fiber AI Agent" className="bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-3 text-sm normal-case font-normal text-on-surface focus:outline-none focus:border-primary" />
           </label>
           <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-            App Address
-            <input value={serviceAddress} onChange={(event) => setServiceAddress(event.target.value)} placeholder="0x... or app.eth" className="bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-3 text-sm normal-case font-mono text-on-surface focus:outline-none focus:border-primary" />
+            Fiber App Address
+            <input value={serviceAddress} onChange={(event) => setServiceAddress(event.target.value)} placeholder="ckt1... or ckb1..." className="bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-3 text-sm normal-case font-mono text-on-surface focus:outline-none focus:border-primary" />
           </label>
           <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-on-surface-variant">
             URL

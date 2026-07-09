@@ -24,6 +24,8 @@ interface LandingPageProps {
   onConnectWallet: () => void;
   walletConnected: boolean;
   walletAddress: string;
+  walletAuthProvider: 'joyid';
+  walletAddressType: 'evm';
   authLoading: boolean;
 }
 
@@ -32,6 +34,8 @@ export default function LandingPage({
   onConnectWallet, 
   walletConnected, 
   walletAddress,
+  walletAuthProvider,
+  walletAddressType,
   authLoading
 }: LandingPageProps) {
   const [streamProgress, setStreamProgress] = useState(0.05);
@@ -87,7 +91,7 @@ export default function LandingPage({
               {authLoading
                 ? 'Connecting JoyID...'
                 : walletConnected
-                  ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`
+                  ? `${walletAuthProvider === 'joyid' ? 'JoyID ' : ''}${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`
                   : 'Connect JoyID'
               }
             </button>

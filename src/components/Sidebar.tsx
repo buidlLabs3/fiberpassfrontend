@@ -14,7 +14,8 @@ import {
   Plus, 
   LogOut, 
   Wallet,
-  Globe
+  Globe,
+  Fingerprint
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -23,6 +24,8 @@ interface SidebarProps {
   onCreateSessionClick: () => void;
   onExitDapp: () => void;
   walletAddress: string;
+  walletAuthProvider: 'joyid';
+  walletAddressType: 'evm';
   walletConnected: boolean;
   onConnectWallet: () => void;
   authLoading: boolean;
@@ -34,6 +37,8 @@ export default function Sidebar({
   onCreateSessionClick,
   onExitDapp,
   walletAddress,
+  walletAuthProvider,
+  walletAddressType,
   walletConnected,
   onConnectWallet,
   authLoading
@@ -41,6 +46,8 @@ export default function Sidebar({
   const shortAddress = walletConnected
     ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`
     : authLoading ? 'Connecting...' : 'Not Connected';
+  const providerLabel = walletAuthProvider === 'joyid' ? 'JoyID' : 'Wallet';
+  const addressTypeLabel = walletAddressType.toUpperCase();
 
   return (
     <>
@@ -69,8 +76,8 @@ export default function Sidebar({
             disabled={authLoading}
             className="flex items-center gap-1.5 px-3 py-1 bg-surface-container-high border border-outline-variant rounded-lg text-[11px] font-mono font-medium text-primary cursor-pointer"
           >
-            <Wallet className="w-3 h-3" />
-            {shortAddress}
+            <Fingerprint className="w-3 h-3" />
+            {walletConnected ? providerLabel + ' ' + shortAddress : shortAddress}
           </button>
 
           <button 
@@ -134,23 +141,15 @@ export default function Sidebar({
       >
         {/* Header User Profile & Branding */}
         <div className="mb-8 px-2 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-surface-container-high border border-outline-variant overflow-hidden shrink-0 flex items-center justify-center">
-            {walletConnected ? (
-              <img 
-                alt="User Wallet Avatar" 
-                className="w-full h-full object-cover" 
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCoAlL8tNYuCaqTrRKva8pZ4xuW2VkplLyQR7LtAQzLfgNdRkHnPTUKWwQmeIuhJMWQsoIj5jPGAe4288NxMY-lVhtjLTsCOlAj7e2vmTVJsyo0W9vRJ6l7vzWDWoQe8xD3zVvDcnTsVzQUcWJBO4_yeQ657U7vFmnhEMo7oIYlEJrrhsOyAwNx0SHSJbUVgLocro6z2g5JJ0lwPJBMAV-yMvUCu9_PTLpuRyPZd2zlsRJM7C6lNLz35Q" 
-              />
-            ) : (
-              <div className="w-full h-full bg-surface-container-highest flex items-center justify-center text-outline">
-                <Wallet className="w-5 h-5" />
-              </div>
-            )}
+          <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/30 shrink-0 flex items-center justify-center text-primary">
+            {walletConnected ? <Fingerprint className="w-5 h-5" /> : <Wallet className="w-5 h-5" />}
           </div>
           <div className="flex flex-col min-w-0">
-            <span className="font-bold text-primary text-sm truncate leading-tight">FiberPass dApp</span>
+            <span className="font-bold text-primary text-sm truncate leading-tight">
+              {walletConnected ? providerLabel + ' Wallet' : 'FiberPass dApp'}
+            </span>
             <span className="font-mono text-[10px] text-on-surface-variant uppercase tracking-wider truncate">
-              {shortAddress}
+              {walletConnected ? addressTypeLabel + ' ' + shortAddress : shortAddress}
             </span>
           </div>
         </div>

@@ -45,6 +45,8 @@ export default function App() {
   const [wallet, setWallet] = useState<WalletState>({
     connected: false,
     address: '',
+    authProvider: 'joyid',
+    addressType: 'evm',
     balance: 0,
     balanceMinor: 0,
     currency: 'USDC'
@@ -156,7 +158,9 @@ export default function App() {
       setWallet(prev => ({
         ...prev,
         connected: Boolean(token),
-        address: storedAddress
+        address: storedAddress,
+        authProvider: 'joyid',
+        addressType: 'evm'
       }));
     }
 
@@ -249,6 +253,8 @@ export default function App() {
           onConnectWallet={handleConnectWallet}
           walletConnected={wallet.connected}
           walletAddress={wallet.address}
+          walletAuthProvider={wallet.authProvider ?? 'joyid'}
+          walletAddressType={wallet.addressType ?? 'evm'}
           authLoading={authLoading}
         />
       )}
@@ -264,6 +270,8 @@ export default function App() {
             onCreateSessionClick={() => setIsModalOpen(true)}
             onExitDapp={handleExitDapp}
             walletAddress={wallet.address}
+            walletAuthProvider={wallet.authProvider ?? 'joyid'}
+            walletAddressType={wallet.addressType ?? 'evm'}
             walletConnected={wallet.connected}
             onConnectWallet={handleConnectWallet}
             authLoading={authLoading}

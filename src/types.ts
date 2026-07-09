@@ -74,6 +74,8 @@ export interface Session {
 export interface WalletState {
   connected: boolean;
   address: string;
+  authProvider?: 'joyid';
+  addressType?: 'evm';
   balance: number;
   balanceMinor?: number;
   currency: string;

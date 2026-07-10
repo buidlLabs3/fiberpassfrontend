@@ -27,7 +27,7 @@ The target use cases include AI agents, API services, RPC access, media streamin
 - TypeScript
 - Vite
 - Tailwind CSS
-- JoyID EVM SDK
+- JoyID CKB SDK
 - FiberPass backend API
 
 ## Local Development
@@ -66,7 +66,6 @@ http://localhost:3000
 ```text
 VITE_API_URL=http://localhost:4000
 VITE_FIBER_NETWORK_NAME="Fiber Network Testnet"
-VITE_FIBER_CHAIN_ID=
 VITE_JOYID_APP_URL=
 VITE_JOYID_SERVER_URL=
 ```

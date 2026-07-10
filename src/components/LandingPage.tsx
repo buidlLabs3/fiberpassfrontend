@@ -25,7 +25,7 @@ interface LandingPageProps {
   walletConnected: boolean;
   walletAddress: string;
   walletAuthProvider: 'joyid';
-  walletAddressType: 'evm';
+  walletAddressType: 'ckb';
   authLoading: boolean;
 }
 

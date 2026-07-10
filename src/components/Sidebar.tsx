@@ -25,7 +25,7 @@ interface SidebarProps {
   onExitDapp: () => void;
   walletAddress: string;
   walletAuthProvider: 'joyid';
-  walletAddressType: 'evm';
+  walletAddressType: 'ckb';
   walletConnected: boolean;
   onConnectWallet: () => void;
   authLoading: boolean;

@@ -13,6 +13,7 @@ export interface AuthVerifyPayload {
   challengeId: string;
   address: string;
   signature: JoyIdSignaturePayload;
+  legacyEvmAddress?: string;
 }
 
 export interface AuthVerifyResponse {

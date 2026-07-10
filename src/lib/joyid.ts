@@ -1,8 +1,13 @@
 import { connect, initConfig, signChallenge, type CkbDappConfig, type SignChallengeResponseData } from '@joyid/ckb';
 
 export type JoyIdSignaturePayload = SignChallengeResponseData;
+export interface JoyIdWalletIdentity {
+  address: string;
+  legacyEvmAddress?: string;
+}
 
 const JOYID_ADDRESS_KEY = 'fiberpass:joyid-ckb-address';
+const LEGACY_EVM_ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 let initialized = false;
 
 function getJoyIdConfig(): CkbDappConfig {
@@ -34,10 +39,14 @@ function storage(): Storage | null {
   return typeof window === 'undefined' ? null : window.localStorage;
 }
 
-export async function connectJoyIdWallet(): Promise<string> {
+export async function connectJoyIdWallet(): Promise<JoyIdWalletIdentity> {
   const connection = await connect(ensureJoyIdConfig());
   storage()?.setItem(JOYID_ADDRESS_KEY, connection.address);
-  return connection.address;
+  const legacyEvmAddress = LEGACY_EVM_ADDRESS_PATTERN.test(connection.ethAddress) ? connection.ethAddress : undefined;
+  return {
+    address: connection.address,
+    legacyEvmAddress
+  };
 }
 
 export async function signJoyIdMessage(message: string, address: string): Promise<JoyIdSignaturePayload> {

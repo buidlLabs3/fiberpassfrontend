@@ -151,13 +151,15 @@ export default function App() {
 
     try {
       await fiberPassApi.getMeta();
-      const address = await connectJoyIdWallet();
+      const identity = await connectJoyIdWallet();
+      const address = identity.address;
       const challenge = await fiberPassApi.createAuthChallenge(address);
       const signature = await signJoyIdMessage(challenge.message, address);
       const auth = await fiberPassApi.verifyAuth({
         challengeId: challenge.challengeId,
         address,
-        signature
+        signature,
+        legacyEvmAddress: identity.legacyEvmAddress
       });
 
       fiberPassApi.setAuthToken(auth.token);

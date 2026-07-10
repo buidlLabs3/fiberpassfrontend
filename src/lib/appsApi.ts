@@ -45,6 +45,87 @@ export interface CreatedAppApiKey extends AppApiKey {
   secret: string;
 }
 
+
+export interface AutomationRecipient {
+  id: string;
+  appId: string;
+  name: string;
+  serviceAddress: string;
+  addressType: string;
+  externalId?: string;
+  invoiceEndpoint?: string;
+  status: 'active' | 'disabled';
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  disabledAt?: string;
+}
+
+export interface AutomationInvoice {
+  id: string;
+  appId: string;
+  sessionId: string;
+  recipientId: string;
+  batchId?: string;
+  amount: number;
+  amountMinor: number;
+  currency: string;
+  status: 'draft' | 'queued' | 'processing' | 'paid' | 'failed' | 'cancelled';
+  type: string;
+  description: string;
+  memo: string;
+  externalReference?: string;
+  idempotencyKey?: string;
+  fiberInvoiceHash?: string;
+  hasFiberInvoice: boolean;
+  dueAt?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AutomationPaymentBatch {
+  id: string;
+  appId: string;
+  sessionId: string;
+  status: 'draft' | 'queued' | 'processing' | 'partial' | 'completed' | 'failed' | 'cancelled';
+  description: string;
+  externalReference?: string;
+  idempotencyKey?: string;
+  totalAmount: number;
+  totalAmountMinor: number;
+  currency: string;
+  invoiceCount: number;
+  paidCount: number;
+  failedCount: number;
+  createdAt: string;
+  updatedAt: string;
+  invoices: AutomationInvoice[];
+}
+
+export interface CreateAutomationInvoicePayload {
+  sessionId: string;
+  recipientId: string;
+  amount: number;
+  type?: string;
+  description?: string;
+  memo?: string;
+  externalReference?: string;
+  idempotencyKey?: string;
+  fiberInvoice?: string;
+  dueAt?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CreateAutomationInvoiceBatchPayload {
+  sessionId: string;
+  description?: string;
+  externalReference?: string;
+  idempotencyKey?: string;
+  metadata?: Record<string, unknown>;
+  invoices: Array<Omit<CreateAutomationInvoicePayload, 'sessionId'>>;
+}
+
 export interface DeveloperApp {
   id: string;
   name: string;
@@ -89,5 +170,25 @@ export const appsApi = {
     }),
 
   getChargeAttempts: (appId: string) =>
-    apiRequest<{ chargeAttempts: AppChargeAttempt[] }>('/apps/' + encodeURIComponent(appId) + '/charges')
+    apiRequest<{ chargeAttempts: AppChargeAttempt[] }>('/apps/' + encodeURIComponent(appId) + '/charges'),
+
+  getRecipients: (appId: string) =>
+    apiRequest<{ recipients: AutomationRecipient[] }>('/apps/' + encodeURIComponent(appId) + '/recipients'),
+
+  getInvoices: (appId: string, sessionId?: string) => {
+    const query = sessionId ? '?sessionId=' + encodeURIComponent(sessionId) : '';
+    return apiRequest<{ invoices: AutomationInvoice[] }>('/apps/' + encodeURIComponent(appId) + '/invoices' + query);
+  },
+
+  createInvoice: (appId: string, payload: CreateAutomationInvoicePayload) =>
+    apiRequest<AutomationInvoice>('/apps/' + encodeURIComponent(appId) + '/invoices', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  createInvoiceBatch: (appId: string, payload: CreateAutomationInvoiceBatchPayload) =>
+    apiRequest<AutomationPaymentBatch>('/apps/' + encodeURIComponent(appId) + '/invoice-batches', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
 };

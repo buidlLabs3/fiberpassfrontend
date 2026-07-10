@@ -427,12 +427,17 @@ export default function App() {
             {activeTab === 'developer' && (
               <DeveloperAppsView
                 apps={developerApps.apps}
+                automationByApp={developerApps.automationByApp}
                 isLoading={developerApps.isLoading}
                 error={developerApps.error}
                 generatedKey={developerApps.generatedKey}
                 onCreateApp={developerApps.createApp}
                 onCreateApiKey={developerApps.createApiKey}
                 onRevokeApiKey={developerApps.revokeApiKey}
+                onCreateRecipient={developerApps.createRecipient}
+                onCreateInvoice={developerApps.createInvoice}
+                onCreateInvoiceBatch={developerApps.createInvoiceBatch}
+                onConfigureWebhook={developerApps.configureWebhook}
                 onClearGeneratedKey={developerApps.clearGeneratedKey}
               />
             )}

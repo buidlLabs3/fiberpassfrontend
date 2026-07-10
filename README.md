@@ -12,6 +12,7 @@ Instead of asking users to approve every tiny payment, FiberPass lets a user app
 - Lets users top up, pause, resume, and revoke sessions.
 - Streams live spend updates from the backend API.
 - Shows historical settled, revoked, and expired sessions.
+- Shows automation invoices, batch progress, payment jobs, recipients, and webhook delivery state for developer apps.
 
 ## Product Goal
 
@@ -72,4 +73,4 @@ VITE_JOYID_SERVER_URL=
 
 ## Status
 
-This frontend is an early product implementation. JoyID auth and backend session APIs are wired, but real Fiber Network payment/session integration is still in progress.
+This frontend is an early product implementation with JoyID auth, session APIs, app-scoped automation controls, and developer payment diagnostics wired to the backend. Real Fiber Network payment/session behavior depends on the configured backend Fiber RPC provider and testnet funding.

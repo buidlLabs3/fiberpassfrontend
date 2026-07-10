@@ -93,6 +93,51 @@ export interface AutomationInvoice {
   updatedAt: string;
 }
 
+export interface AutomationPaymentJob {
+  id: string;
+  appId: string;
+  sessionId: string;
+  invoiceId: string;
+  recipientId: string;
+  batchId?: string;
+  amount: number;
+  amountMinor: number;
+  currency: string;
+  status: 'queued' | 'locked' | 'processing' | 'succeeded' | 'retrying' | 'failed' | 'cancelled';
+  attempts: number;
+  maxAttempts: number;
+  runAfter: string;
+  lockedAt?: string;
+  lockedBy?: string;
+  startedAt?: string;
+  succeededAt?: string;
+  failedAt?: string;
+  cancelledAt?: string;
+  lastFailureCode?: string;
+  lastFailureMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  appId: string;
+  eventType: string;
+  targetType: string;
+  targetId: string;
+  status: 'queued' | 'delivering' | 'succeeded' | 'retrying' | 'failed' | 'cancelled';
+  attempts: number;
+  maxAttempts: number;
+  runAfter: string;
+  deliveredAt?: string;
+  failedAt?: string;
+  responseStatus?: number;
+  lastFailureCode?: string;
+  lastFailureMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AutomationPaymentBatch {
   id: string;
   appId: string;
@@ -118,6 +163,14 @@ export interface AutomationPaymentBatch {
   createdAt: string;
   updatedAt: string;
   invoices: AutomationInvoice[];
+}
+
+export interface CreateAutomationRecipientPayload {
+  name: string;
+  serviceAddress: string;
+  externalId?: string;
+  invoiceEndpoint?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CreateAutomationInvoicePayload {
@@ -150,6 +203,8 @@ export interface DeveloperApp {
   url: string;
   category: string;
   description: string;
+  webhookUrl?: string;
+  webhookConfigured: boolean;
   status: 'pending_verification' | 'active' | 'suspended' | 'revoked';
   createdAt: string;
   updatedAt: string;
@@ -192,6 +247,21 @@ export const appsApi = {
   getRecipients: (appId: string) =>
     apiRequest<{ recipients: AutomationRecipient[] }>('/apps/' + encodeURIComponent(appId) + '/recipients'),
 
+  createRecipient: (appId: string, payload: CreateAutomationRecipientPayload) =>
+    apiRequest<AutomationRecipient>('/apps/' + encodeURIComponent(appId) + '/recipients', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  configureWebhook: (appId: string, payload: { webhookUrl?: string; signingSecret?: string }) =>
+    apiRequest<DeveloperApp>('/apps/' + encodeURIComponent(appId) + '/webhook', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  getWebhookDeliveries: (appId: string) =>
+    apiRequest<{ deliveries: WebhookDelivery[] }>('/apps/' + encodeURIComponent(appId) + '/webhook-deliveries'),
+
   getInvoices: (appId: string, sessionId?: string) => {
     const query = sessionId ? '?sessionId=' + encodeURIComponent(sessionId) : '';
     return apiRequest<{ invoices: AutomationInvoice[] }>('/apps/' + encodeURIComponent(appId) + '/invoices' + query);
@@ -200,6 +270,11 @@ export const appsApi = {
   getInvoiceBatches: (appId: string, sessionId?: string) => {
     const query = sessionId ? '?sessionId=' + encodeURIComponent(sessionId) : '';
     return apiRequest<{ batches: AutomationPaymentBatch[] }>('/apps/' + encodeURIComponent(appId) + '/invoice-batches' + query);
+  },
+
+  getPaymentJobs: (appId: string, sessionId?: string) => {
+    const query = sessionId ? '?sessionId=' + encodeURIComponent(sessionId) : '';
+    return apiRequest<{ jobs: AutomationPaymentJob[] }>('/apps/' + encodeURIComponent(appId) + '/payment-jobs' + query);
   },
 
   queueInvoice: (appId: string, invoiceId: string) =>

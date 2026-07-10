@@ -24,6 +24,18 @@ import {
 import { Session } from '../types';
 import { formatCurrencyAmount } from '../lib/currency';
 
+function sessionPurposeLabel(session: Session): string {
+  if (session.paymentPurpose === 'subscription') return 'Subscription';
+  if (session.paymentPurpose === 'scheduled_release') return 'Scheduled invoice';
+  if (session.paymentPurpose === 'recurring_release') return 'Recurring payout';
+  return session.singleUse ? 'Single-use app pass' : 'App/API session';
+}
+
+function sessionScheduleLabel(session: Session): string {
+  if (session.nextReleaseAt) return 'Next ' + new Date(session.nextReleaseAt).toLocaleString();
+  return session.expiryAt ? new Date(session.expiryAt).toLocaleString() : session.expiryTime;
+}
+
 interface DashboardViewProps {
   activeSessions: Session[];
   walletBalance: number;
@@ -207,7 +219,7 @@ export default function DashboardView({
                     </div>
 
                     <div className="flex justify-between items-center text-[10px] text-on-surface-variant">
-                      <span>{session.singleUse ? 'Single-use only' : 'Continuous streaming'}</span>
+                      <span>{sessionPurposeLabel(session)}</span>
                       <span className="font-mono">{spentPercentage.toFixed(1)}% spent</span>
                     </div>
 
@@ -217,8 +229,8 @@ export default function DashboardView({
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-[10px] text-on-surface-variant">
-                      <span className="truncate">{session.chargePolicy ?? 'App-defined charge policy'}</span>
-                      <span className="font-mono text-right truncate">{session.expiryAt ? new Date(session.expiryAt).toLocaleString() : session.expiryTime}</span>
+                      <span className="truncate">{session.chargePolicy ?? sessionPurposeLabel(session)}</span>
+                      <span className="font-mono text-right truncate">{sessionScheduleLabel(session)}</span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-[10px] text-on-surface-variant">

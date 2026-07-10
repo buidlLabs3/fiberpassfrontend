@@ -1,4 +1,4 @@
-import { type Session, type WalletState } from '../types';
+import { type PaymentPurpose, type RecipientWallet, type ReleaseCadence, type Session, type WalletState } from '../types';
 import { apiRequest } from './apiClient';
 
 export interface SessionsOverview {
@@ -56,6 +56,15 @@ export interface CreateSessionPayload {
   appTrustLevel?: string;
   appPermissions?: string[];
   chargePolicy?: string;
+  paymentPurpose?: PaymentPurpose;
+  recipientName?: string;
+  recipientAddress?: string;
+  recipientWallets?: RecipientWallet[];
+  paymentReference?: string;
+  releaseCadence?: ReleaseCadence;
+  nextReleaseAt?: string;
+  maxChargeAmount?: number;
+  conditionSummary?: string;
   expiryAt?: string;
   platformFeeEstimate?: number;
   networkFeeEstimate?: number;

@@ -3,6 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export type PaymentPurpose = 'app_session' | 'subscription' | 'scheduled_release' | 'recurring_release';
+export type ReleaseCadence = 'none' | 'on_demand' | 'daily' | 'weekly' | 'monthly' | 'custom';
+
+export interface RecipientWallet {
+  name: string;
+  address: string;
+}
+
 export interface TransactionLog {
   id: string;
   type: string;
@@ -42,6 +50,16 @@ export interface Session {
   appTrustLevel?: string;
   appPermissions?: string[];
   chargePolicy?: string;
+  paymentPurpose?: PaymentPurpose;
+  recipientName?: string;
+  recipientAddress?: string;
+  recipientWallets?: RecipientWallet[];
+  paymentReference?: string;
+  releaseCadence?: ReleaseCadence;
+  nextReleaseAt?: string;
+  maxChargeAmount?: number;
+  maxChargeAmountMinor?: number;
+  conditionSummary?: string;
   expiryAt?: string;
   platformFeeEstimate?: number;
   platformFeeEstimateMinor?: number;

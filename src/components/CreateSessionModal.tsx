@@ -19,8 +19,10 @@ import {
   Link2,
   LoaderCircle,
   MessageSquare,
+  Plus,
   Search,
   ShieldCheck,
+  Trash2,
   Video,
   Wallet,
   X
@@ -32,6 +34,9 @@ import { formatCurrencyAmount } from '../lib/currency';
 
 type FlowStep = 'details' | 'review' | 'success';
 type AppMode = 'verified' | 'manual';
+type PaymentPurpose = NonNullable<CreateSessionPayload['paymentPurpose']>;
+type ReleaseCadence = NonNullable<CreateSessionPayload['releaseCadence']>;
+type RecipientWalletDraft = { id: string; name: string; address: string };
 
 interface CreateSessionModalProps {
   isOpen: boolean;
@@ -61,8 +66,31 @@ const FALLBACK_POLICY: CreateSessionPolicy = {
 
 const LIMIT_PRESETS = [0.05, 0.1, 0.25, 0.5, 1];
 
+const PAYMENT_PURPOSE_OPTIONS: Array<{ value: PaymentPurpose; label: string; detail: string; icon: 'activity' | 'wallet' | 'calendar' | 'shield' }> = [
+  { value: 'app_session', label: 'App or API', detail: 'Usage-based charges under one cap.', icon: 'activity' },
+  { value: 'subscription', label: 'Subscription', detail: 'Recurring services like AI tools or SaaS.', icon: 'shield' },
+  { value: 'scheduled_release', label: 'Invoice', detail: 'Release once on a set date.', icon: 'calendar' },
+  { value: 'recurring_release', label: 'Recurring payout', detail: 'Rent, fees, contractors, or retainers.', icon: 'wallet' }
+];
+
+const CADENCE_OPTIONS: Array<{ value: ReleaseCadence; label: string }> = [
+  { value: 'on_demand', label: 'On request' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' }
+];
+
 function formatAmount(value: number, currency: string, maxDigits?: number): string {
   return formatCurrencyAmount(value, currency, maxDigits);
+}
+
+function newRecipientWalletDraft(): RecipientWalletDraft {
+  return { id: 'wallet-' + Math.random().toString(36).slice(2, 10), name: '', address: '' };
+}
+
+function cleanRecipientWallets(wallets: RecipientWalletDraft[]): Array<{ name: string; address: string }> {
+  return wallets
+    .map((wallet) => ({ name: wallet.name.trim(), address: wallet.address.trim() }))
+    .filter((wallet) => wallet.name || wallet.address);
 }
 
 function toDateTimeLocal(date: Date): string {
@@ -79,6 +107,31 @@ function formatExpiry(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Invalid expiry';
   return date.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function purposeLabel(value: PaymentPurpose): string {
+  return PAYMENT_PURPOSE_OPTIONS.find((option) => option.value === value)?.label ?? 'App or API';
+}
+
+function defaultCadenceForPurpose(value: PaymentPurpose): ReleaseCadence {
+  if (value === 'subscription') return 'monthly';
+  if (value === 'recurring_release') return 'monthly';
+  return 'none';
+}
+
+function cadenceText(value: ReleaseCadence): string {
+  if (value === 'weekly') return 'weekly';
+  if (value === 'monthly') return 'monthly';
+  if (value === 'custom') return 'on the selected schedule';
+  if (value === 'on_demand') return 'when requested';
+  return 'once';
+}
+
+function renderPurposeIcon(icon: 'activity' | 'wallet' | 'calendar' | 'shield') {
+  if (icon === 'wallet') return <Wallet className="w-4 h-4 text-primary" />;
+  if (icon === 'calendar') return <CalendarClock className="w-4 h-4 text-primary" />;
+  if (icon === 'shield') return <ShieldCheck className="w-4 h-4 text-primary" />;
+  return <Activity className="w-4 h-4 text-primary" />;
 }
 
 export default function CreateSessionModal({
@@ -100,6 +153,13 @@ export default function CreateSessionModal({
   const [spendingLimit, setSpendingLimit] = useState('2.00');
   const [currency, setCurrency] = useState('CKB');
   const [expiryDateTime, setExpiryDateTime] = useState(dateFromNow(24));
+  const [paymentPurpose, setPaymentPurpose] = useState<PaymentPurpose>('app_session');
+  const [recipientWallets, setRecipientWallets] = useState<RecipientWalletDraft[]>(() => [newRecipientWalletDraft()]);
+  const [paymentReference, setPaymentReference] = useState('');
+  const [releaseCadence, setReleaseCadence] = useState<ReleaseCadence>('none');
+  const [nextReleaseDateTime, setNextReleaseDateTime] = useState(dateFromNow(24));
+  const [maxChargeAmount, setMaxChargeAmount] = useState('');
+  const [conditionSummary, setConditionSummary] = useState('');
   const [autoMicroCharges, setAutoMicroCharges] = useState(true);
   const [singleUse, setSingleUse] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -142,6 +202,13 @@ export default function CreateSessionModal({
     setSpendingLimit('2.00');
     setCurrency('CKB');
     setExpiryDateTime(dateFromNow(24));
+    setPaymentPurpose('app_session');
+    setRecipientWallets([newRecipientWalletDraft()]);
+    setPaymentReference('');
+    setReleaseCadence('none');
+    setNextReleaseDateTime(dateFromNow(24));
+    setMaxChargeAmount('');
+    setConditionSummary('');
     setAutoMicroCharges(true);
     setSingleUse(false);
     setErrorMessage('');
@@ -194,9 +261,29 @@ export default function CreateSessionModal({
     }
   };
 
+  const effectiveReleaseCadence: ReleaseCadence = paymentPurpose === 'app_session' || paymentPurpose === 'scheduled_release' ? 'none' : releaseCadence === 'none' ? defaultCadenceForPurpose(paymentPurpose) : releaseCadence;
+  const maxChargeNum = Number.parseFloat(maxChargeAmount);
+  const normalizedMaxCharge = Number.isFinite(maxChargeNum) && maxChargeAmount.trim() ? maxChargeNum : undefined;
+  const requiresRecipient = paymentPurpose === 'scheduled_release' || paymentPurpose === 'recurring_release';
+  const requiresReleaseDate = paymentPurpose === 'scheduled_release' || paymentPurpose === 'recurring_release';
+  const cleanedRecipientWallets = cleanRecipientWallets(recipientWallets);
+  const primaryRecipient = cleanedRecipientWallets[0];
+  const recipientSummary = cleanedRecipientWallets.length > 1 ? cleanedRecipientWallets.length + ' wallets' : primaryRecipient?.name ?? '';
   const currentAppName = appMode === 'verified' ? selectedApp?.name ?? '' : manualServiceName.trim();
   const currentServiceAddress = appMode === 'verified' ? selectedApp?.serviceAddress ?? '' : manualServiceAddress.trim();
-  const currentChargePolicy = appMode === 'verified' ? selectedApp?.chargePolicy : autoMicroCharges ? 'Manual Fiber app may charge until the pass limit is reached.' : 'Manual Fiber app can be charged once after owner action.';
+  const currentChargePolicy = (() => {
+    if (paymentPurpose === 'app_session') {
+      if (appMode === 'verified' && selectedApp?.chargePolicy) return selectedApp.chargePolicy;
+      return autoMicroCharges ? 'App may charge repeatedly until the pass limit or expiry is reached.' : 'App can charge only after owner-controlled payment action.';
+    }
+    if (paymentPurpose === 'subscription') {
+      return 'Subscription may auto-charge ' + (normalizedMaxCharge ? 'up to ' + formatAmount(normalizedMaxCharge, currency, 8) + ' ' : '') + cadenceText(effectiveReleaseCadence) + ' while the pass is active.';
+    }
+    if (paymentPurpose === 'scheduled_release') {
+      return 'Reserved funds auto-release once' + (recipientSummary ? ' to ' + recipientSummary : '') + ' on the scheduled date after invoice validation.';
+    }
+    return 'Reserved funds auto-release ' + cadenceText(effectiveReleaseCadence) + (recipientSummary ? ' to ' + recipientSummary : '') + ' after invoice validation.';
+  })();
 
   const validateDetails = (): boolean => {
     setErrorMessage('');
@@ -241,6 +328,44 @@ export default function CreateSessionModal({
       return false;
     }
 
+    if (requiresRecipient) {
+      if (cleanedRecipientWallets.length === 0) {
+        setErrorMessage('Add at least one recipient CKB wallet for this payment rule.');
+        return false;
+      }
+
+      const invalidWallet = cleanedRecipientWallets.find((wallet) => !wallet.name || !isFiberCkbAddress(wallet.address));
+      if (invalidWallet) {
+        setErrorMessage(!invalidWallet.name ? 'Each recipient wallet needs a label.' : FIBER_CKB_ADDRESS_ERROR);
+        return false;
+      }
+
+      const uniqueAddresses = new Set(cleanedRecipientWallets.map((wallet) => wallet.address.toLowerCase()));
+      if (uniqueAddresses.size !== cleanedRecipientWallets.length) {
+        setErrorMessage('Recipient wallet addresses must be unique.');
+        return false;
+      }
+    }
+
+    if (maxChargeAmount.trim()) {
+      if (!Number.isFinite(maxChargeNum) || maxChargeNum <= 0 || maxChargeNum > normalizedLimit) {
+        setErrorMessage('Per-payment cap must be greater than 0 and no more than the pass limit.');
+        return false;
+      }
+    }
+
+    if (requiresReleaseDate) {
+      const releaseDate = new Date(nextReleaseDateTime);
+      if (Number.isNaN(releaseDate.getTime())) {
+        setErrorMessage('Choose a valid release date and time.');
+        return false;
+      }
+      if (releaseDate.getTime() <= Date.now() || releaseDate.getTime() > expiry.getTime()) {
+        setErrorMessage('Release date must be in the future and before the pass expiry.');
+        return false;
+      }
+    }
+
     return true;
   };
 
@@ -254,6 +379,15 @@ export default function CreateSessionModal({
       appTrustLevel: appMode === 'verified' ? selectedApp?.trustLevel : 'manual',
       appPermissions: appMode === 'verified' ? selectedApp?.permissions : ['Charge through FiberPass API', 'Read pass status'],
       chargePolicy: currentChargePolicy,
+      paymentPurpose,
+      recipientName: requiresRecipient ? primaryRecipient?.name : undefined,
+      recipientAddress: requiresRecipient ? primaryRecipient?.address : undefined,
+      recipientWallets: requiresRecipient ? cleanedRecipientWallets : undefined,
+      paymentReference: paymentReference.trim() || undefined,
+      releaseCadence: effectiveReleaseCadence,
+      nextReleaseAt: requiresReleaseDate ? new Date(nextReleaseDateTime).toISOString() : undefined,
+      maxChargeAmount: normalizedMaxCharge,
+      conditionSummary: conditionSummary.trim() || undefined,
       expiryAt: expiry.toISOString(),
       platformFeeEstimate,
       networkFeeEstimate,
@@ -261,8 +395,8 @@ export default function CreateSessionModal({
       currency,
       duration: 'until-expiry',
       expiryTime: expiry.toISOString(),
-      autoMicroCharges,
-      singleUse,
+      autoMicroCharges: paymentPurpose === 'app_session' ? autoMicroCharges : true,
+      singleUse: paymentPurpose === 'scheduled_release' && cleanedRecipientWallets.length <= 1 ? true : paymentPurpose === 'app_session' ? singleUse : false,
       iconType: appMode === 'verified' ? selectedApp?.iconType ?? 'rpc' : 'rpc'
     };
   };
@@ -287,13 +421,28 @@ export default function CreateSessionModal({
     }
   };
 
-  const detailRows = [
+  const detailRows: Array<[string, string]> = [
+    ['Type', purposeLabel(paymentPurpose)],
     ['App', currentAppName || 'Not selected'],
     ['Limit', formatAmount(normalizedLimit, currency)],
-    ['Expiry', formatExpiry(expiryDateTime)],
-    ['Platform fee estimate', formatAmount(platformFeeEstimate, currency, 8)],
-    ['Fiber network fee estimate', formatAmount(networkFeeEstimate, currency, 8)]
+    ['Expiry', formatExpiry(expiryDateTime)]
   ];
+
+  if (requiresRecipient) {
+    detailRows.push(['Recipients', cleanedRecipientWallets.length > 1 ? cleanedRecipientWallets.length + ' wallets' : primaryRecipient?.name || 'Not set']);
+    detailRows.push(['Release', formatExpiry(nextReleaseDateTime)]);
+  }
+
+  if (paymentPurpose === 'subscription' || paymentPurpose === 'recurring_release') {
+    detailRows.push(['Cadence', cadenceText(effectiveReleaseCadence)]);
+  }
+
+  if (normalizedMaxCharge) {
+    detailRows.push(['Per-payment cap', formatAmount(normalizedMaxCharge, currency, 8)]);
+  }
+
+  detailRows.push(['Platform fee estimate', formatAmount(platformFeeEstimate, currency, 8)]);
+  detailRows.push(['Fiber network fee estimate', formatAmount(networkFeeEstimate, currency, 8)]);
 
   return (
     <div className="fixed inset-0 bg-background/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
@@ -303,7 +452,7 @@ export default function CreateSessionModal({
             <Bolt className="w-6 h-6 text-primary fill-current shrink-0" />
             <div className="min-w-0">
               <h2 className="text-xl font-bold text-on-surface tracking-tight">Create FiberPass</h2>
-              <p className="text-xs text-on-surface-variant truncate">{step === 'review' ? 'Review pass contract' : step === 'success' ? 'Pass created' : 'App, limit, expiry, and payment policy'}</p>
+              <p className="text-xs text-on-surface-variant truncate">{step === 'review' ? 'Review payment rule' : step === 'success' ? 'Pass created' : 'Purpose, limit, schedule, and policy'}</p>
             </div>
           </div>
           <button
@@ -538,34 +687,188 @@ export default function CreateSessionModal({
                     </div>
                   </section>
 
-                  <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setAutoMicroCharges(!autoMicroCharges)}
-                      className="flex items-center justify-between p-4 border border-outline-variant rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer text-left"
-                    >
-                      <div className="pr-4 min-w-0">
-                        <span className="font-bold text-sm text-on-surface block">Continuous charging</span>
-                        <span className="text-[11px] text-on-surface-variant leading-relaxed">App can charge repeatedly until the pass limit or expiry is reached.</span>
-                      </div>
-                      <span className={autoMicroCharges ? 'w-11 h-6 rounded-full bg-secondary relative shrink-0' : 'w-11 h-6 rounded-full bg-surface-container-highest border border-outline-variant relative shrink-0'}>
-                        <span className={autoMicroCharges ? 'absolute top-[2px] left-[21px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full' : 'absolute top-[2px] left-[2px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full'} />
-                      </span>
-                    </button>
+                  <section className="flex flex-col gap-3">
+                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Payment Type</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                      {PAYMENT_PURPOSE_OPTIONS.map((option) => {
+                        const selected = paymentPurpose === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => {
+                              setPaymentPurpose(option.value);
+                              setReleaseCadence(defaultCadenceForPurpose(option.value));
+                              setSingleUse(option.value === 'scheduled_release');
+                              setAutoMicroCharges(true);
+                            }}
+                            className={(selected ? 'border-primary bg-primary/10 text-on-surface ' : 'border-outline-variant bg-surface-container text-on-surface-variant hover:text-on-surface ') + 'rounded-xl border p-3 text-left transition-colors min-h-[112px] flex flex-col gap-2'}
+                          >
+                            <span className="w-8 h-8 rounded-lg border border-outline-variant bg-surface-container-highest flex items-center justify-center">
+                              {renderPurposeIcon(option.icon)}
+                            </span>
+                            <span className="font-bold text-sm leading-tight">{option.label}</span>
+                            <span className="text-[11px] leading-snug">{option.detail}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setSingleUse(!singleUse)}
-                      className="flex items-center justify-between p-4 border border-outline-variant rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer text-left"
-                    >
-                      <div className="pr-4 min-w-0">
-                        <span className="font-bold text-sm text-on-surface block">Single use</span>
-                        <span className="text-[11px] text-on-surface-variant leading-relaxed">Pass settles after the first successful charge and refunds the remainder.</span>
+                    {paymentPurpose === 'app_session' ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setAutoMicroCharges(!autoMicroCharges)}
+                          className="flex items-center justify-between p-4 border border-outline-variant rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer text-left"
+                        >
+                          <div className="pr-4 min-w-0">
+                            <span className="font-bold text-sm text-on-surface block">Automatic app charges</span>
+                            <span className="text-[11px] text-on-surface-variant leading-relaxed">App can charge while the pass has balance.</span>
+                          </div>
+                          <span className={autoMicroCharges ? 'w-11 h-6 rounded-full bg-secondary relative shrink-0' : 'w-11 h-6 rounded-full bg-surface-container-highest border border-outline-variant relative shrink-0'}>
+                            <span className={autoMicroCharges ? 'absolute top-[2px] left-[21px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full' : 'absolute top-[2px] left-[2px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full'} />
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setSingleUse(!singleUse)}
+                          className="flex items-center justify-between p-4 border border-outline-variant rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer text-left"
+                        >
+                          <div className="pr-4 min-w-0">
+                            <span className="font-bold text-sm text-on-surface block">Settle after first charge</span>
+                            <span className="text-[11px] text-on-surface-variant leading-relaxed">Refund unused balance after one successful payment.</span>
+                          </div>
+                          <span className={singleUse ? 'w-11 h-6 rounded-full bg-secondary relative shrink-0' : 'w-11 h-6 rounded-full bg-surface-container-highest border border-outline-variant relative shrink-0'}>
+                            <span className={singleUse ? 'absolute top-[2px] left-[21px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full' : 'absolute top-[2px] left-[2px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full'} />
+                          </span>
+                        </button>
                       </div>
-                      <span className={singleUse ? 'w-11 h-6 rounded-full bg-secondary relative shrink-0' : 'w-11 h-6 rounded-full bg-surface-container-highest border border-outline-variant relative shrink-0'}>
-                        <span className={singleUse ? 'absolute top-[2px] left-[21px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full' : 'absolute top-[2px] left-[2px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full'} />
-                      </span>
-                    </button>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl border border-outline-variant bg-surface-container/60 p-4">
+                        {requiresRecipient && (
+                          <div className="md:col-span-2 flex flex-col gap-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Recipient Wallets</label>
+                              <button
+                                type="button"
+                                onClick={() => setRecipientWallets((wallets) => [...wallets, newRecipientWalletDraft()])}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface-container-high px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-primary hover:border-primary/50"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                Add wallet
+                              </button>
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                              {recipientWallets.map((wallet, index) => (
+                                <div key={wallet.id} className="grid grid-cols-1 md:grid-cols-[0.75fr_1fr_auto] gap-2 rounded-lg border border-outline-variant/70 bg-surface-container-lowest/60 p-2">
+                                  <input
+                                    type="text"
+                                    aria-label={`Recipient wallet ${index + 1} label`}
+                                    placeholder="Recipient label"
+                                    value={wallet.name}
+                                    onChange={(event) => setRecipientWallets((wallets) => wallets.map((item) => item.id === wallet.id ? { ...item, name: event.target.value } : item))}
+                                    className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
+                                  />
+                                  <input
+                                    type="text"
+                                    aria-label={`Recipient wallet ${index + 1} CKB address`}
+                                    placeholder="ckt1... or ckb1..."
+                                    value={wallet.address}
+                                    onChange={(event) => setRecipientWallets((wallets) => wallets.map((item) => item.id === wallet.id ? { ...item, address: event.target.value } : item))}
+                                    className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2 px-3 text-sm font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setRecipientWallets((wallets) => wallets.length > 1 ? wallets.filter((item) => item.id !== wallet.id) : wallets)}
+                                    disabled={recipientWallets.length === 1}
+                                    className="h-10 w-10 rounded-lg border border-outline-variant bg-surface-container text-on-surface-variant hover:text-error hover:border-error/40 disabled:opacity-40 disabled:hover:text-on-surface-variant disabled:hover:border-outline-variant flex items-center justify-center"
+                                    title="Remove recipient wallet"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {(paymentPurpose === 'subscription' || paymentPurpose === 'recurring_release') && (
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="release-cadence">Cadence</label>
+                            <select
+                              id="release-cadence"
+                              value={releaseCadence}
+                              onChange={(event) => setReleaseCadence(event.target.value as ReleaseCadence)}
+                              className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50"
+                            >
+                              {CADENCE_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        {requiresReleaseDate && (
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="release-date">Release Date</label>
+                            <input
+                              id="release-date"
+                              type="datetime-local"
+                              value={nextReleaseDateTime}
+                              min={dateFromNow(resolvedPolicy.expiry.minMinutes / 60)}
+                              max={expiryDateTime}
+                              onChange={(event) => setNextReleaseDateTime(event.target.value)}
+                              className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-4 text-sm font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50"
+                            />
+                          </div>
+                        )}
+
+                        {(paymentPurpose === 'subscription' || paymentPurpose === 'recurring_release') && (
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="max-charge">Per-Payment Cap</label>
+                            <input
+                              id="max-charge"
+                              type="number"
+                              step="0.01"
+                              min={resolvedPolicy.limits.min}
+                              max={normalizedLimit || resolvedPolicy.limits.max}
+                              placeholder={spendingLimit || '0.00'}
+                              value={maxChargeAmount}
+                              onChange={(event) => setMaxChargeAmount(event.target.value)}
+                              className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-4 text-sm font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
+                            />
+                          </div>
+                        )}
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="payment-reference">Reference</label>
+                          <input
+                            id="payment-reference"
+                            type="text"
+                            placeholder={paymentPurpose === 'subscription' ? 'Subscription id or plan' : 'Invoice, lease, or contract id'}
+                            value={paymentReference}
+                            onChange={(event) => setPaymentReference(event.target.value)}
+                            className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
+                          />
+                        </div>
+
+                        {paymentPurpose !== 'subscription' && (
+                          <div className="flex flex-col gap-1.5 md:col-span-2">
+                            <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="condition-summary">Condition</label>
+                            <input
+                              id="condition-summary"
+                              type="text"
+                              placeholder="e.g. Release after invoice arrives, service completed, or rent due"
+                              value={conditionSummary}
+                              onChange={(event) => setConditionSummary(event.target.value)}
+                              className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </section>
 
                   <section className="grid grid-cols-1 md:grid-cols-3 gap-3">

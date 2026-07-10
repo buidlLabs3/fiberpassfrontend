@@ -15,6 +15,7 @@ import { WalletState } from './types';
 import { fiberPassApi, getApiErrorMessage, type ApiMeta, type CreateSessionPayload } from './lib/api';
 import { type WalletFundingConfig, type WalletFundingRequest } from './lib/walletApi';
 import { connectJoyIdWallet, disconnectJoyIdWallet, getStoredJoyIdAddress, signJoyIdMessage } from './lib/joyid';
+import { useAutomationOverview } from './hooks/useAutomationOverview';
 import { useDeveloperApps } from './hooks/useDeveloperApps';
 import { useSessionsOverview } from './hooks/useSessionsOverview';
 
@@ -25,12 +26,13 @@ import DashboardView from './components/DashboardView';
 import HistoryView from './components/HistoryView';
 import CreateSessionModal from './components/CreateSessionModal';
 import DeveloperAppsView from './components/DeveloperAppsView';
+import AutomationView from './components/AutomationView';
 import LoadFundsModal from './components/LoadFundsModal';
 
 export default function App() {
   // Navigation states
   const [currentView, setCurrentView] = useState<'landing' | 'app'>('landing');
-  const [activeTab, setActiveTab] = useState<'active' | 'history' | 'developer' | 'settings'>('active');
+  const [activeTab, setActiveTab] = useState<'active' | 'history' | 'automation' | 'developer' | 'settings'>('active');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFundingModalOpen, setIsFundingModalOpen] = useState(false);
 
@@ -55,6 +57,7 @@ export default function App() {
   const [fundingError, setFundingError] = useState('');
 
   const sessions = useSessionsOverview(currentView === 'app' && wallet.connected);
+  const automation = useAutomationOverview(currentView === 'app' && wallet.connected && activeTab === 'automation');
   const developerApps = useDeveloperApps(currentView === 'app' && wallet.connected && activeTab === 'developer');
   const activeSessions = sessions.activeSessions;
   const historySessions = sessions.historySessions;
@@ -324,6 +327,24 @@ export default function App() {
     await runSessionAction(id, 'close', () => sessions.closeSession(id));
   };
 
+  const handleQueueAutomationInvoice = async (appId: string, invoiceId: string) => {
+    try {
+      await automation.queueInvoice(appId, invoiceId);
+      await sessions.refresh();
+    } catch (error) {
+      handleApiError(error);
+    }
+  };
+
+  const handleQueueAutomationBatch = async (appId: string, batchId: string) => {
+    try {
+      await automation.queueBatch(appId, batchId);
+      await sessions.refresh();
+    } catch (error) {
+      handleApiError(error);
+    }
+  };
+
   const visibleError = apiError || sessions.error;
 
   return (
@@ -386,6 +407,20 @@ export default function App() {
             {/* Session History Tab */}
             {activeTab === 'history' && (
               <HistoryView historySessions={historySessions} isLoading={sessions.isLoading} />
+            )}
+
+            {/* Automation Tab */}
+            {activeTab === 'automation' && (
+              <AutomationView
+                apps={automation.apps}
+                activeSessions={activeSessions}
+                isLoading={automation.isLoading}
+                error={automation.error}
+                pendingAction={automation.pendingAction}
+                onQueueInvoice={handleQueueAutomationInvoice}
+                onQueueBatch={handleQueueAutomationBatch}
+                onRefresh={automation.refresh}
+              />
             )}
 
             {/* Developer Apps Tab */}

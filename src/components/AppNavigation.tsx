@@ -11,11 +11,12 @@ import {
   History,
   LogOut,
   Plus,
+  ReceiptText,
   Settings,
   Wallet
 } from 'lucide-react';
 
-type AppTab = 'active' | 'history' | 'developer' | 'settings';
+type AppTab = 'active' | 'history' | 'automation' | 'developer' | 'settings';
 
 interface AppNavigationProps {
   currentTab: AppTab;
@@ -33,6 +34,7 @@ interface AppNavigationProps {
 const tabs: Array<{ id: AppTab; label: string; icon: React.ComponentType<{ className?: string }> }> = [
   { id: 'active', label: 'Active', icon: Bolt },
   { id: 'history', label: 'History', icon: History },
+  { id: 'automation', label: 'Automation', icon: ReceiptText },
   { id: 'developer', label: 'Apps', icon: Code2 },
   { id: 'settings', label: 'Settings', icon: Settings }
 ];
@@ -109,7 +111,7 @@ export default function AppNavigation({
           </div>
         </div>
 
-        <nav aria-label="FiberPass sections" className="grid grid-cols-4 gap-1 rounded-xl border border-outline-variant bg-surface-container-low p-1 sm:gap-2 sm:p-1.5">
+        <nav aria-label="FiberPass sections" className="grid grid-cols-2 sm:grid-cols-5 gap-1 rounded-xl border border-outline-variant bg-surface-container-low p-1 sm:gap-2 sm:p-1.5">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const selected = currentTab === tab.id;

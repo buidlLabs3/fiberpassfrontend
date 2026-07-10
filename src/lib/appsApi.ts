@@ -78,7 +78,16 @@ export interface AutomationInvoice {
   idempotencyKey?: string;
   fiberInvoiceHash?: string;
   hasFiberInvoice: boolean;
+  chargeAttemptId?: string;
+  paymentJobId?: string;
   dueAt?: string;
+  queuedAt?: string;
+  processingAt?: string;
+  paidAt?: string;
+  failedAt?: string;
+  cancelledAt?: string;
+  lastFailureCode?: string;
+  lastFailureMessage?: string;
   metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
@@ -98,6 +107,14 @@ export interface AutomationPaymentBatch {
   invoiceCount: number;
   paidCount: number;
   failedCount: number;
+  queuedAt?: string;
+  processingAt?: string;
+  completedAt?: string;
+  failedAt?: string;
+  cancelledAt?: string;
+  lastFailureCode?: string;
+  lastFailureMessage?: string;
+  metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
   invoices: AutomationInvoice[];
@@ -179,6 +196,23 @@ export const appsApi = {
     const query = sessionId ? '?sessionId=' + encodeURIComponent(sessionId) : '';
     return apiRequest<{ invoices: AutomationInvoice[] }>('/apps/' + encodeURIComponent(appId) + '/invoices' + query);
   },
+
+  getInvoiceBatches: (appId: string, sessionId?: string) => {
+    const query = sessionId ? '?sessionId=' + encodeURIComponent(sessionId) : '';
+    return apiRequest<{ batches: AutomationPaymentBatch[] }>('/apps/' + encodeURIComponent(appId) + '/invoice-batches' + query);
+  },
+
+  queueInvoice: (appId: string, invoiceId: string) =>
+    apiRequest<AutomationInvoice>('/apps/' + encodeURIComponent(appId) + '/invoices/' + encodeURIComponent(invoiceId) + '/queue', {
+      method: 'POST',
+      body: JSON.stringify({})
+    }),
+
+  queueInvoiceBatch: (appId: string, batchId: string) =>
+    apiRequest<AutomationPaymentBatch>('/apps/' + encodeURIComponent(appId) + '/invoice-batches/' + encodeURIComponent(batchId) + '/queue', {
+      method: 'POST',
+      body: JSON.stringify({})
+    }),
 
   createInvoice: (appId: string, payload: CreateAutomationInvoicePayload) =>
     apiRequest<AutomationInvoice>('/apps/' + encodeURIComponent(appId) + '/invoices', {

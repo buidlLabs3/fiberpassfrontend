@@ -22,12 +22,21 @@ export interface AppChargeAttempt {
   createdAt: string;
 }
 
+export type AppApiKeyScope =
+  | 'charges:create'
+  | 'recipients:read'
+  | 'recipients:write'
+  | 'invoices:create'
+  | 'payments:queue'
+  | 'payments:charge';
+
 export interface AppApiKey {
   id: string;
   appId: string;
   label: string;
   keyPrefix: string;
   status: 'active' | 'revoked';
+  scopes: AppApiKeyScope[];
   lastUsedAt?: string;
   createdAt: string;
 }
@@ -67,10 +76,10 @@ export const appsApi = {
       body: JSON.stringify(payload)
     }),
 
-  createApiKey: (appId: string, label: string) =>
+  createApiKey: (appId: string, label: string, scopes?: AppApiKeyScope[]) =>
     apiRequest<CreatedAppApiKey>('/apps/' + encodeURIComponent(appId) + '/api-keys', {
       method: 'POST',
-      body: JSON.stringify({ label })
+      body: JSON.stringify({ label, ...(scopes ? { scopes } : {}) })
     }),
 
   revokeApiKey: (appId: string, keyId: string) =>

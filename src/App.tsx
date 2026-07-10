@@ -4,20 +4,10 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { 
-  Bolt, 
-  Wallet, 
-  Coins, 
-  LogOut, 
-  Key, 
-  Cpu, 
-  ShieldCheck, 
-  CheckCircle2, 
-  HelpCircle,
-  Clock,
-  Settings,
-  RefreshCw,
-  TrendingUp,
+import {
+  CheckCircle2,
+  Key,
+  ShieldCheck,
   Sliders
 } from 'lucide-react';
 
@@ -30,7 +20,7 @@ import { useSessionsOverview } from './hooks/useSessionsOverview';
 
 // Subcomponents imports
 import LandingPage from './components/LandingPage';
-import Sidebar from './components/Sidebar';
+import AppNavigation from './components/AppNavigation';
 import DashboardView from './components/DashboardView';
 import HistoryView from './components/HistoryView';
 import CreateSessionModal from './components/CreateSessionModal';
@@ -353,10 +343,8 @@ export default function App() {
 
       {/* 2. Interactive dApp Console Dashboard View */}
       {currentView === 'app' && (
-        <div className="flex min-h-screen selection:bg-primary-container selection:text-on-primary-container relative">
-          
-          {/* Left Navigation Rail (fixed) */}
-          <Sidebar 
+        <div className="min-h-screen selection:bg-primary-container selection:text-on-primary-container">
+          <AppNavigation
             currentTab={activeTab}
             onTabChange={setActiveTab}
             onCreateSessionClick={() => setIsModalOpen(true)}
@@ -370,7 +358,7 @@ export default function App() {
           />
 
           {/* Main Context Stage */}
-          <main className="flex-grow pt-24 pb-24 md:py-8 px-6 md:pl-72 max-w-7xl mx-auto w-full flex flex-col">
+          <main className="mx-auto flex w-full max-w-[1440px] flex-col px-4 py-6 sm:px-6 md:py-8 lg:px-8">
             {visibleError && (
               <div className="mb-4 rounded-lg border border-error/30 bg-error/10 px-4 py-2 text-xs font-semibold text-error">
                 {visibleError}

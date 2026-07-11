@@ -36,7 +36,7 @@ type FlowStep = 'details' | 'review' | 'success';
 type AppMode = 'verified' | 'manual';
 type PaymentPurpose = NonNullable<CreateSessionPayload['paymentPurpose']>;
 type ReleaseCadence = NonNullable<CreateSessionPayload['releaseCadence']>;
-type RecipientWalletDraft = { id: string; name: string; address: string; amount: string };
+type RecipientWalletDraft = { id: string; name: string; email: string; address: string; amount: string };
 
 interface CreateSessionModalProps {
   isOpen: boolean;
@@ -85,17 +85,22 @@ function formatAmount(value: number, currency: string, maxDigits?: number): stri
 }
 
 function newRecipientWalletDraft(): RecipientWalletDraft {
-  return { id: 'wallet-' + Math.random().toString(36).slice(2, 10), name: '', address: '', amount: '' };
+  return { id: 'recipient-' + Math.random().toString(36).slice(2, 10), name: '', email: '', address: '', amount: '' };
 }
 
-function cleanRecipientWallets(wallets: RecipientWalletDraft[]): Array<{ name: string; address: string; amount?: number }> {
+function isRecipientEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function cleanRecipientWallets(wallets: RecipientWalletDraft[]): Array<{ name: string; address?: string; email?: string; amount?: number }> {
   return wallets
     .map((wallet) => ({
       name: wallet.name.trim(),
-      address: wallet.address.trim(),
+      email: wallet.email.trim().toLowerCase() || undefined,
+      address: wallet.address.trim() || undefined,
       amount: wallet.amount.trim() ? Number.parseFloat(wallet.amount) : undefined
     }))
-    .filter((wallet) => wallet.name || wallet.address || wallet.amount != null);
+    .filter((wallet) => wallet.name || wallet.address || wallet.email || wallet.amount != null);
 }
 
 function toDateTimeLocal(date: Date): string {
@@ -276,7 +281,7 @@ export default function CreateSessionModal({
   const requiresReleaseDate = paymentPurpose === 'subscription' || paymentPurpose === 'scheduled_release' || paymentPurpose === 'recurring_release';
   const cleanedRecipientWallets = cleanRecipientWallets(recipientWallets);
   const primaryRecipient = cleanedRecipientWallets[0];
-  const recipientSummary = cleanedRecipientWallets.length > 1 ? cleanedRecipientWallets.length + ' wallets' : primaryRecipient?.name ?? '';
+  const recipientSummary = cleanedRecipientWallets.length > 1 ? cleanedRecipientWallets.length + ' recipients' : primaryRecipient?.name ?? '';
   const connectedControllerAddress = connectedWalletAddress.trim();
   const secondaryController = secondaryControllerAddress.trim();
   const currentAppName = manualServiceName.trim();
@@ -357,19 +362,28 @@ export default function CreateSessionModal({
 
     if (requiresRecipient) {
       if (cleanedRecipientWallets.length === 0) {
-        setErrorMessage('Add at least one recipient CKB wallet for this payment rule.');
+        setErrorMessage('Add at least one recipient email or CKB wallet for this payment rule.');
         return false;
       }
 
-      const invalidWallet = cleanedRecipientWallets.find((wallet) => !wallet.name || !isFiberCkbAddress(wallet.address));
-      if (invalidWallet) {
-        setErrorMessage(!invalidWallet.name ? 'Each recipient wallet needs a label.' : FIBER_CKB_ADDRESS_ERROR);
+      const invalidDestination = cleanedRecipientWallets.find((wallet) => {
+        if (!wallet.name) return true;
+        if (!wallet.email && !wallet.address) return true;
+        if (wallet.email && !isRecipientEmail(wallet.email)) return true;
+        if (wallet.address && !isFiberCkbAddress(wallet.address)) return true;
+        return false;
+      });
+      if (invalidDestination) {
+        if (!invalidDestination.name) setErrorMessage('Each recipient needs a label.');
+        else if (!invalidDestination.email && !invalidDestination.address) setErrorMessage('Each recipient needs an email invite or CKB wallet address.');
+        else if (invalidDestination.email && !isRecipientEmail(invalidDestination.email)) setErrorMessage('Enter a valid recipient email address.');
+        else setErrorMessage(FIBER_CKB_ADDRESS_ERROR);
         return false;
       }
 
       const invalidAmount = cleanedRecipientWallets.find((wallet) => !Number.isFinite(wallet.amount) || !wallet.amount || wallet.amount <= 0);
       if (invalidAmount) {
-        setErrorMessage('Each recipient wallet needs a payout amount.');
+        setErrorMessage('Each recipient needs a payout amount.');
         return false;
       }
 
@@ -379,10 +393,15 @@ export default function CreateSessionModal({
         return false;
       }
 
-
-      const uniqueAddresses = new Set(cleanedRecipientWallets.map((wallet) => wallet.address.toLowerCase()));
-      if (uniqueAddresses.size !== cleanedRecipientWallets.length) {
+      const addresses = cleanedRecipientWallets.map((wallet) => wallet.address?.toLowerCase()).filter((value): value is string => Boolean(value));
+      if (new Set(addresses).size !== addresses.length) {
         setErrorMessage('Recipient wallet addresses must be unique.');
+        return false;
+      }
+
+      const emails = cleanedRecipientWallets.map((wallet) => wallet.email).filter((value): value is string => Boolean(value));
+      if (new Set(emails).size !== emails.length) {
+        setErrorMessage('Recipient email addresses must be unique.');
         return false;
       }
     }
@@ -469,7 +488,7 @@ export default function CreateSessionModal({
   ];
 
   if (requiresRecipient) {
-    detailRows.push(['Recipients', cleanedRecipientWallets.length > 1 ? cleanedRecipientWallets.length + ' wallets' : primaryRecipient?.name || 'Not set']);
+    detailRows.push(['Recipients', cleanedRecipientWallets.length > 1 ? cleanedRecipientWallets.length + ' recipients' : primaryRecipient?.name || 'Not set']);
     detailRows.push(['Release', formatExpiry(nextReleaseDateTime)]);
   }
 
@@ -679,13 +698,13 @@ export default function CreateSessionModal({
                                 className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface-container-high px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-primary hover:border-primary/50"
                               >
                                 <Plus className="w-3.5 h-3.5" />
-                                Add wallet
+                                Add recipient
                               </button>
                             </div>
 
                             <div className="flex flex-col gap-2">
                               {recipientWallets.map((wallet, index) => (
-                                <div key={wallet.id} className="grid grid-cols-1 md:grid-cols-[0.7fr_1fr_0.45fr_auto] gap-2 rounded-lg border border-outline-variant/70 bg-surface-container-lowest/60 p-2">
+                                <div key={wallet.id} className="grid grid-cols-1 md:grid-cols-[0.7fr_1fr_1fr_0.45fr_auto] gap-2 rounded-lg border border-outline-variant/70 bg-surface-container-lowest/60 p-2">
                                   <input
                                     type="text"
                                     aria-label={`Recipient wallet ${index + 1} label`}
@@ -695,9 +714,17 @@ export default function CreateSessionModal({
                                     className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
                                   />
                                   <input
+                                    type="email"
+                                    aria-label={`Recipient ${index + 1} email`}
+                                    placeholder="Recipient email"
+                                    value={wallet.email}
+                                    onChange={(event) => setRecipientWallets((wallets) => wallets.map((item) => item.id === wallet.id ? { ...item, email: event.target.value } : item))}
+                                    className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
+                                  />
+                                  <input
                                     type="text"
-                                    aria-label={`Recipient wallet ${index + 1} CKB address`}
-                                    placeholder="Recipient CKB address"
+                                    aria-label={`Recipient ${index + 1} CKB address`}
+                                    placeholder="CKB address (optional)"
                                     value={wallet.address}
                                     onChange={(event) => setRecipientWallets((wallets) => wallets.map((item) => item.id === wallet.id ? { ...item, address: event.target.value } : item))}
                                     className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2 px-3 text-sm font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
@@ -706,7 +733,7 @@ export default function CreateSessionModal({
                                     type="number"
                                     step="0.01"
                                     min={resolvedPolicy.limits.min}
-                                    aria-label={`Recipient wallet ${index + 1} payout amount`}
+                                    aria-label={`Recipient ${index + 1} payout amount`}
                                     placeholder="Amount"
                                     value={wallet.amount}
                                     onChange={(event) => setRecipientWallets((wallets) => wallets.map((item) => item.id === wallet.id ? { ...item, amount: event.target.value } : item))}
@@ -717,7 +744,7 @@ export default function CreateSessionModal({
                                     onClick={() => setRecipientWallets((wallets) => wallets.length > 1 ? wallets.filter((item) => item.id !== wallet.id) : wallets)}
                                     disabled={recipientWallets.length === 1}
                                     className="h-10 w-10 rounded-lg border border-outline-variant bg-surface-container text-on-surface-variant hover:text-error hover:border-error/40 disabled:opacity-40 disabled:hover:text-on-surface-variant disabled:hover:border-outline-variant flex items-center justify-center"
-                                    title="Remove recipient wallet"
+                                    title="Remove recipient"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>

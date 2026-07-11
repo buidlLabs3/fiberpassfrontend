@@ -50,7 +50,7 @@ export default function App() {
   const [apiError, setApiError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [createSessionLoading, setCreateSessionLoading] = useState(false);
-  const [pendingSessionAction, setPendingSessionAction] = useState<{ id: string; action: 'top-up' | 'pause' | 'revoke' | 'close' } | null>(null);
+  const [pendingSessionAction, setPendingSessionAction] = useState<{ id: string; action: 'top-up' | 'resend-invites' | 'pause' | 'revoke' | 'close' } | null>(null);
   const [fundingConfig, setFundingConfig] = useState<WalletFundingConfig | null>(null);
   const [fundingRequests, setFundingRequests] = useState<WalletFundingRequest[]>([]);
   const [fundingLoading, setFundingLoading] = useState(false);
@@ -244,7 +244,7 @@ export default function App() {
 
   const runSessionAction = async (
     id: string,
-    action: 'top-up' | 'pause' | 'revoke' | 'close',
+    action: 'top-up' | 'resend-invites' | 'pause' | 'revoke' | 'close',
     operation: () => Promise<unknown>
   ) => {
     setPendingSessionAction({ id, action });
@@ -309,6 +309,10 @@ export default function App() {
   // Top Up an active session (Allocate +$1.00)
   const handleTopUpSession = async (id: string) => {
     await runSessionAction(id, 'top-up', () => sessions.topUpSession(id, 1));
+  };
+
+  const handleResendRecipientInvites = async (id: string) => {
+    await runSessionAction(id, 'resend-invites', () => sessions.resendRecipientInvites(id));
   };
 
   // Pause / Resume continuous billing triggers
@@ -396,6 +400,7 @@ export default function App() {
                 isLoading={sessions.isLoading}
                 pendingSessionAction={pendingSessionAction}
                 onTopUpSession={handleTopUpSession}
+                onResendRecipientInvites={handleResendRecipientInvites}
                 onTogglePauseSession={handleTogglePauseSession}
                 onRevokeSession={handleRevokeSession}
                 onCloseSession={handleCloseSession}

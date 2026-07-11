@@ -119,6 +119,7 @@ export function useSessionsOverview(enabled: boolean) {
     refresh,
     createSession: (payload: CreateSessionPayload) => runMutation(() => sessionsApi.createSession(payload)),
     topUpSession: (id: string, amount = 1) => runMutation(() => sessionsApi.topUpSession(id, amount)),
+    resendRecipientInvites: (id: string) => runMutation(() => sessionsApi.resendRecipientInvites(id)),
     togglePauseSession: (id: string) => runMutation(() => sessionsApi.togglePauseSession(id)),
     revokeSession: (id: string) => runMutation(() => sessionsApi.revokeSession(id)),
     closeSession: (id: string) => runMutation(() => sessionsApi.closeSession(id))

@@ -22,7 +22,8 @@ import {
   CalendarClock,
   ShieldCheck,
   X,
-  Wallet
+  Wallet,
+  ExternalLink
 } from 'lucide-react';
 import { Session } from '../types';
 import { formatCurrencyAmount } from '../lib/currency';
@@ -65,7 +66,7 @@ function recipientWalletsForSession(session: Session) {
 
 function recipientStatusClass(status?: string): string {
   if (status === 'paid') return 'border-secondary/30 bg-secondary/10 text-secondary';
-  if (status === 'processing') return 'border-primary/30 bg-primary/10 text-primary';
+  if (status === 'processing' || status === 'awaiting_details') return 'border-primary/30 bg-primary/10 text-primary';
   if (status === 'failed') return 'border-error/30 bg-error/10 text-error';
   return 'border-outline-variant bg-surface-container-high text-on-surface-variant';
 }
@@ -79,11 +80,23 @@ function DetailRow({ label, value, mono = false }: { label: string; value?: Reac
   );
 }
 
-function SessionDetailModal({ session, onClose }: { session: Session; onClose: () => void }) {
+function ProofLink({ proofId, explorerUrl }: { proofId?: string; explorerUrl?: string }) {
+  if (!proofId) return <>Not set</>;
+  if (!explorerUrl) return <>{shortValue(proofId)}</>;
+  return (
+    <a href={explorerUrl} target="_blank" rel="noreferrer" className="inline-flex max-w-full items-center gap-1 text-primary hover:text-secondary break-all">
+      <span>{shortValue(proofId)}</span>
+      <ExternalLink className="h-3 w-3 shrink-0" />
+    </a>
+  );
+}
+
+function SessionDetailModal({ session, onClose, onResendRecipientInvites }: { session: Session; onClose: () => void; onResendRecipientInvites: (id: string) => void }) {
   const wallets = recipientWalletsForSession(session);
   const remainingBalance = session.remainingBalance ?? Math.max(0, session.limit - session.spent);
   const recentAttempts = session.chargeAttempts.slice(0, 8);
   const recentLogs = session.logs.slice(0, 8);
+  const hasResendableRecipientInvites = wallets.some((wallet) => Boolean(wallet.email && !wallet.address && wallet.status !== 'paid' && wallet.inviteStatus !== 'claimed'));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-md p-4" onClick={onClose}>
@@ -165,33 +178,50 @@ function SessionDetailModal({ session, onClose }: { session: Session; onClose: (
 
           {wallets.length > 0 && (
             <section className="rounded-xl border border-outline-variant bg-surface-container/60 p-4 space-y-3">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <h4 className="text-sm font-bold text-on-surface">Recipient Wallets</h4>
-                <span className="rounded-full border border-outline-variant bg-surface-container-high px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">{wallets.length}</span>
+                <div className="flex items-center gap-2">
+                  {hasResendableRecipientInvites && (
+                    <button
+                      type="button"
+                      onClick={() => onResendRecipientInvites(session.id)}
+                      className="rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-primary hover:bg-primary/20"
+                    >
+                      Resend Invites
+                    </button>
+                  )}
+                  <span className="rounded-full border border-outline-variant bg-surface-container-high px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">{wallets.length}</span>
+                </div>
               </div>
               <div className="grid grid-cols-1 gap-2">
                 {wallets.map((wallet, index) => (
-                  <article key={wallet.address + '-' + index} className="rounded-lg border border-outline-variant/70 bg-surface-container-lowest/50 p-3">
+                  <article key={(wallet.address ?? wallet.email ?? 'recipient') + '-' + index} className="rounded-lg border border-outline-variant/70 bg-surface-container-lowest/50 p-3">
                     <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-bold text-sm text-on-surface">{wallet.name}</span>
                           <span className={'rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ' + recipientStatusClass(wallet.status)}>{wallet.status ?? 'pending'}</span>
                         </div>
-                        <p className="mt-1 font-mono text-[11px] text-on-surface-variant break-all">{wallet.address}</p>
+                        <p className="mt-1 font-mono text-[11px] text-on-surface-variant break-all">{wallet.address || 'Awaiting wallet details'}</p>
+                        {wallet.email && <p className="mt-1 text-[11px] text-on-surface-variant break-all">Email: {wallet.email}</p>}
+                        {wallet.inviteStatus && wallet.inviteStatus !== 'not_required' && <p className="mt-1 text-[11px] text-on-surface-variant">Invite: {wallet.inviteStatus}{wallet.inviteTokenExpiresAt ? ' / expires ' + formatDateTime(wallet.inviteTokenExpiresAt) : ''}</p>}
                         {wallet.fiberInvoice && (
                           <div className="mt-2 rounded-md border border-outline-variant/50 bg-surface-container/60 p-2">
                             <span className="text-[9px] font-bold uppercase tracking-wider text-on-surface-variant">Payment Request</span>
                             <p className="mt-1 font-mono text-[10px] text-outline break-all">{wallet.fiberInvoice}</p>
                           </div>
                         )}
+                        {wallet.inviteLastFailure && <p className="mt-2 text-xs text-error">Invite: {wallet.inviteLastFailure}</p>}
                         {wallet.lastFailureMessage && <p className="mt-2 text-xs text-error">{wallet.lastFailureCode}: {wallet.lastFailureMessage}</p>}
+                        {wallet.payoutNotificationFailure && <p className="mt-2 text-xs text-error">Receipt email: {wallet.payoutNotificationFailure}</p>}
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:min-w-[420px]">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 lg:min-w-[520px]">
                         <DetailRow label="Amount" value={wallet.amount == null ? 'Not set' : formatCurrencyAmount(wallet.amount, session.currency)} mono />
                         <DetailRow label="Last Attempt" value={formatDateTime(wallet.lastAttemptAt)} />
                         <DetailRow label="Paid At" value={formatDateTime(wallet.paidAt)} />
                         <DetailRow label="Attempt" value={shortValue(wallet.chargeAttemptId)} mono />
+                        <DetailRow label="Tx Hash" value={<ProofLink proofId={wallet.payoutProofId} explorerUrl={wallet.payoutExplorerUrl} />} mono />
+                        <DetailRow label="Receipt Email" value={wallet.payoutNotificationStatus ?? (wallet.email ? 'pending' : 'not required')} />
                       </div>
                     </div>
                   </article>
@@ -243,6 +273,7 @@ function SessionDetailModal({ session, onClose }: { session: Session; onClose: (
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-on-surface-variant">
                     <span>{attempt.status}</span>
                     <span>{formatDateTime(attempt.createdAt)}</span>
+                    {attempt.proofId && <span><ProofLink proofId={attempt.proofId} explorerUrl={attempt.explorerUrl} /></span>}
                     {attempt.failureMessage && <span className="text-error">{attempt.failureCode}: {attempt.failureMessage}</span>}
                   </div>
                 </div>
@@ -279,8 +310,9 @@ interface DashboardViewProps {
   walletCurrency: string;
   totalActivePassValue: number;
   isLoading?: boolean;
-  pendingSessionAction?: { id: string; action: 'top-up' | 'pause' | 'revoke' | 'close' } | null;
+  pendingSessionAction?: { id: string; action: 'top-up' | 'resend-invites' | 'pause' | 'revoke' | 'close' } | null;
   onTopUpSession: (id: string) => void;
+  onResendRecipientInvites: (id: string) => void;
   onTogglePauseSession: (id: string) => void;
   onRevokeSession: (id: string) => void;
   onCloseSession: (id: string) => void;
@@ -296,6 +328,7 @@ export default function DashboardView({
   isLoading = false,
   pendingSessionAction = null,
   onTopUpSession,
+  onResendRecipientInvites,
   onTogglePauseSession,
   onRevokeSession,
   onCloseSession,
@@ -559,7 +592,7 @@ export default function DashboardView({
       </section>
 
       {selectedSession && (
-        <SessionDetailModal session={selectedSession} onClose={() => setSelectedSessionId(null)} />
+        <SessionDetailModal session={selectedSession} onClose={() => setSelectedSessionId(null)} onResendRecipientInvites={onResendRecipientInvites} />
       )}
     </div>
   );

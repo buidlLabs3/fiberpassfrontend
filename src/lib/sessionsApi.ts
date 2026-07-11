@@ -1,4 +1,4 @@
-import { type PaymentPurpose, type RecipientWallet, type ReleaseCadence, type Session, type WalletState } from '../types';
+import { type PaymentPurpose, type RecipientClaim, type RecipientWallet, type ReleaseCadence, type Session, type WalletState } from '../types';
 import { apiRequest } from './apiClient';
 
 export interface SessionsOverview {
@@ -94,6 +94,12 @@ export const sessionsApi = {
       body: JSON.stringify({ amount })
     }),
 
+  resendRecipientInvites: (id: string) =>
+    apiRequest<SessionsOverview>('/sessions/' + encodeURIComponent(id) + '/recipient-invites/resend', {
+      method: 'POST',
+      body: JSON.stringify({})
+    }),
+
   togglePauseSession: (id: string) =>
     apiRequest<SessionsOverview>('/sessions/' + encodeURIComponent(id) + '/toggle-pause', {
       method: 'POST',
@@ -116,5 +122,15 @@ export const sessionsApi = {
     apiRequest<SessionsOverview>('/sessions/' + encodeURIComponent(id) + '/close', {
       method: 'POST',
       body: JSON.stringify({})
+    }),
+
+  getRecipientClaim: (token: string) =>
+    apiRequest<RecipientClaim>('/recipient-claims/' + encodeURIComponent(token), { auth: false }),
+
+  claimRecipientWallet: (token: string, address: string) =>
+    apiRequest<RecipientClaim>('/recipient-claims/' + encodeURIComponent(token), {
+      method: 'POST',
+      auth: false,
+      body: JSON.stringify({ address })
     })
 };

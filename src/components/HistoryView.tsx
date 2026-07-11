@@ -31,6 +31,23 @@ interface HistoryViewProps {
   isLoading?: boolean;
 }
 
+function shortValue(value?: string): string {
+  if (!value) return 'Not set';
+  if (value.length <= 18) return value;
+  return value.slice(0, 10) + '...' + value.slice(-8);
+}
+
+function ProofLink({ proofId, explorerUrl }: { proofId?: string; explorerUrl?: string }) {
+  if (!proofId) return <>Not set</>;
+  if (!explorerUrl) return <>{shortValue(proofId)}</>;
+  return (
+    <a href={explorerUrl} target="_blank" rel="noreferrer" className="inline-flex max-w-full items-center gap-1 text-primary hover:text-secondary">
+      <span>{shortValue(proofId)}</span>
+      <ExternalLink className="h-3 w-3 shrink-0" />
+    </a>
+  );
+}
+
 export default function HistoryView({ historySessions, isLoading = false }: HistoryViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSessionId, setSelectedSessionId] = useState<string>(
@@ -361,7 +378,7 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
                         </div>
                         <p className="font-mono text-[9px] text-on-surface-variant mt-1 truncate">{new Date(attempt.createdAt).toLocaleString()}</p>
                         {attempt.proofId && (
-                          <p className="font-mono text-[9px] text-on-surface-variant mt-1 truncate">Proof: {attempt.proofId}</p>
+                          <p className="font-mono text-[9px] text-on-surface-variant mt-1 truncate">Proof: <ProofLink proofId={attempt.proofId} explorerUrl={attempt.explorerUrl} /></p>
                         )}
                         {attempt.failureMessage && (
                           <p className="text-[10px] text-error mt-1 leading-relaxed">{attempt.failureCode}: {attempt.failureMessage}</p>

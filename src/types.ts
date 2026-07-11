@@ -8,16 +8,27 @@ export type ReleaseCadence = 'none' | 'on_demand' | 'daily' | 'weekly' | 'monthl
 
 export interface RecipientWallet {
   name: string;
-  address: string;
+  address?: string;
+  email?: string;
   amount?: number;
   amountMinor?: number;
   fiberInvoice?: string;
-  status?: 'pending' | 'processing' | 'paid' | 'failed';
+  status?: 'awaiting_details' | 'pending' | 'processing' | 'paid' | 'failed';
   chargeAttemptId?: string;
   paidAt?: string;
   lastAttemptAt?: string;
   lastFailureCode?: string;
   lastFailureMessage?: string;
+  inviteStatus?: 'not_required' | 'pending' | 'sent' | 'claimed' | 'expired' | 'send_failed';
+  inviteTokenExpiresAt?: string;
+  inviteSentAt?: string;
+  inviteClaimedAt?: string;
+  inviteLastFailure?: string;
+  payoutProofId?: string;
+  payoutExplorerUrl?: string;
+  payoutNotifiedAt?: string;
+  payoutNotificationStatus?: 'not_required' | 'pending' | 'sent' | 'failed';
+  payoutNotificationFailure?: string;
 }
 
 export interface TransactionLog {
@@ -47,6 +58,7 @@ export interface ChargeAttempt {
   provider?: string;
   network?: string;
   proofId?: string;
+  explorerUrl?: string;
   createdAt: string;
 }
 
@@ -106,4 +118,20 @@ export interface WalletState {
   balance: number;
   balanceMinor?: number;
   currency: string;
+}
+
+export interface RecipientClaim {
+  tokenValid: boolean;
+  status: 'pending' | 'claimed' | 'expired' | 'not_found';
+  recipientName?: string;
+  recipientEmail?: string;
+  amount?: number;
+  amountMinor?: number;
+  currency?: string;
+  payerName?: string;
+  passName?: string;
+  expectedPaymentAt?: string;
+  expiresAt?: string;
+  reference?: string;
+  conditionSummary?: string;
 }

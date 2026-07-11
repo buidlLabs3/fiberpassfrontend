@@ -9,6 +9,15 @@ export type ReleaseCadence = 'none' | 'on_demand' | 'daily' | 'weekly' | 'monthl
 export interface RecipientWallet {
   name: string;
   address: string;
+  amount?: number;
+  amountMinor?: number;
+  fiberInvoice?: string;
+  status?: 'pending' | 'processing' | 'paid' | 'failed';
+  chargeAttemptId?: string;
+  paidAt?: string;
+  lastAttemptAt?: string;
+  lastFailureCode?: string;
+  lastFailureMessage?: string;
 }
 
 export interface TransactionLog {

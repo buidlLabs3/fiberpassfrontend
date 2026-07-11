@@ -36,13 +36,14 @@ type FlowStep = 'details' | 'review' | 'success';
 type AppMode = 'verified' | 'manual';
 type PaymentPurpose = NonNullable<CreateSessionPayload['paymentPurpose']>;
 type ReleaseCadence = NonNullable<CreateSessionPayload['releaseCadence']>;
-type RecipientWalletDraft = { id: string; name: string; address: string };
+type RecipientWalletDraft = { id: string; name: string; address: string; amount: string };
 
 interface CreateSessionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreateSession: (sessionData: CreateSessionPayload) => void | Promise<void>;
   walletBalance: number;
+  connectedWalletAddress: string;
   isSubmitting?: boolean;
 }
 
@@ -84,13 +85,17 @@ function formatAmount(value: number, currency: string, maxDigits?: number): stri
 }
 
 function newRecipientWalletDraft(): RecipientWalletDraft {
-  return { id: 'wallet-' + Math.random().toString(36).slice(2, 10), name: '', address: '' };
+  return { id: 'wallet-' + Math.random().toString(36).slice(2, 10), name: '', address: '', amount: '' };
 }
 
-function cleanRecipientWallets(wallets: RecipientWalletDraft[]): Array<{ name: string; address: string }> {
+function cleanRecipientWallets(wallets: RecipientWalletDraft[]): Array<{ name: string; address: string; amount?: number }> {
   return wallets
-    .map((wallet) => ({ name: wallet.name.trim(), address: wallet.address.trim() }))
-    .filter((wallet) => wallet.name || wallet.address);
+    .map((wallet) => ({
+      name: wallet.name.trim(),
+      address: wallet.address.trim(),
+      amount: wallet.amount.trim() ? Number.parseFloat(wallet.amount) : undefined
+    }))
+    .filter((wallet) => wallet.name || wallet.address || wallet.amount != null);
 }
 
 function toDateTimeLocal(date: Date): string {
@@ -139,6 +144,7 @@ export default function CreateSessionModal({
   onClose,
   onCreateSession,
   walletBalance,
+  connectedWalletAddress,
   isSubmitting = false
 }: CreateSessionModalProps) {
   const [step, setStep] = useState<FlowStep>('details');
@@ -150,6 +156,7 @@ export default function CreateSessionModal({
   const [appSearch, setAppSearch] = useState('');
   const [manualServiceName, setManualServiceName] = useState('');
   const [manualServiceAddress, setManualServiceAddress] = useState('');
+  const [secondaryControllerAddress, setSecondaryControllerAddress] = useState('');
   const [spendingLimit, setSpendingLimit] = useState('2.00');
   const [currency, setCurrency] = useState('CKB');
   const [expiryDateTime, setExpiryDateTime] = useState(dateFromNow(24));
@@ -199,6 +206,7 @@ export default function CreateSessionModal({
     setAppSearch('');
     setManualServiceName('');
     setManualServiceAddress('');
+    setSecondaryControllerAddress('');
     setSpendingLimit('2.00');
     setCurrency('CKB');
     setExpiryDateTime(dateFromNow(24));
@@ -264,45 +272,64 @@ export default function CreateSessionModal({
   const effectiveReleaseCadence: ReleaseCadence = paymentPurpose === 'app_session' || paymentPurpose === 'scheduled_release' ? 'none' : releaseCadence === 'none' ? defaultCadenceForPurpose(paymentPurpose) : releaseCadence;
   const maxChargeNum = Number.parseFloat(maxChargeAmount);
   const normalizedMaxCharge = Number.isFinite(maxChargeNum) && maxChargeAmount.trim() ? maxChargeNum : undefined;
-  const requiresRecipient = paymentPurpose === 'scheduled_release' || paymentPurpose === 'recurring_release';
-  const requiresReleaseDate = paymentPurpose === 'scheduled_release' || paymentPurpose === 'recurring_release';
+  const requiresRecipient = paymentPurpose === 'subscription' || paymentPurpose === 'scheduled_release' || paymentPurpose === 'recurring_release';
+  const requiresReleaseDate = paymentPurpose === 'subscription' || paymentPurpose === 'scheduled_release' || paymentPurpose === 'recurring_release';
   const cleanedRecipientWallets = cleanRecipientWallets(recipientWallets);
   const primaryRecipient = cleanedRecipientWallets[0];
   const recipientSummary = cleanedRecipientWallets.length > 1 ? cleanedRecipientWallets.length + ' wallets' : primaryRecipient?.name ?? '';
-  const currentAppName = appMode === 'verified' ? selectedApp?.name ?? '' : manualServiceName.trim();
-  const currentServiceAddress = appMode === 'verified' ? selectedApp?.serviceAddress ?? '' : manualServiceAddress.trim();
+  const connectedControllerAddress = connectedWalletAddress.trim();
+  const secondaryController = secondaryControllerAddress.trim();
+  const currentAppName = manualServiceName.trim();
+  const currentServiceAddress = secondaryController || connectedControllerAddress;
   const currentChargePolicy = (() => {
     if (paymentPurpose === 'app_session') {
-      if (appMode === 'verified' && selectedApp?.chargePolicy) return selectedApp.chargePolicy;
-      return autoMicroCharges ? 'App may charge repeatedly until the pass limit or expiry is reached.' : 'App can charge only after owner-controlled payment action.';
+      if (singleUse) return 'One payment can be made, then unused balance is returned.';
+      return autoMicroCharges ? 'Payments can repeat until the pass limit or expiry is reached.' : 'Payments only run from owner-controlled actions.';
     }
     if (paymentPurpose === 'subscription') {
       return 'Subscription may auto-charge ' + (normalizedMaxCharge ? 'up to ' + formatAmount(normalizedMaxCharge, currency, 8) + ' ' : '') + cadenceText(effectiveReleaseCadence) + ' while the pass is active.';
     }
     if (paymentPurpose === 'scheduled_release') {
-      return 'Reserved funds auto-release once' + (recipientSummary ? ' to ' + recipientSummary : '') + ' on the scheduled date after invoice validation.';
+      return 'Reserved funds auto-release once' + (recipientSummary ? ' to ' + recipientSummary : '') + ' on the scheduled date through the FiberPass vault.';
     }
-    return 'Reserved funds auto-release ' + cadenceText(effectiveReleaseCadence) + (recipientSummary ? ' to ' + recipientSummary : '') + ' after invoice validation.';
+    return 'Reserved funds auto-release ' + cadenceText(effectiveReleaseCadence) + (recipientSummary ? ' to ' + recipientSummary : '') + ' through the FiberPass vault.';
   })();
+
+  const paymentBehavior = singleUse ? 'single' : autoMicroCharges ? 'automatic' : 'manual';
+
+  const handlePaymentBehaviorChange = (value: string) => {
+    if (value === 'single') {
+      setSingleUse(true);
+      setAutoMicroCharges(true);
+      return;
+    }
+    setSingleUse(false);
+    setAutoMicroCharges(value !== 'manual');
+  };
+
+  const handlePaymentPurposeChange = (value: PaymentPurpose) => {
+    setPaymentPurpose(value);
+    setReleaseCadence(defaultCadenceForPurpose(value));
+    setSingleUse(value === 'scheduled_release');
+    setAutoMicroCharges(true);
+  };
 
   const validateDetails = (): boolean => {
     setErrorMessage('');
 
-    if (appMode === 'verified' && !selectedApp) {
-      setErrorMessage('Select a verified app or switch to manual advanced mode.');
+    if (!currentAppName) {
+      setErrorMessage('Enter a pass name.');
       return false;
     }
 
-    if (appMode === 'manual') {
-      if (!manualServiceName.trim()) {
-        setErrorMessage('Enter the manual app name.');
-        return false;
-      }
+    if (!isFiberCkbAddress(connectedControllerAddress)) {
+      setErrorMessage('Connect a valid JoyID CKB wallet before creating a pass.');
+      return false;
+    }
 
-      if (!isFiberCkbAddress(manualServiceAddress)) {
-        setErrorMessage(FIBER_CKB_ADDRESS_ERROR);
-        return false;
-      }
+    if (secondaryController && !isFiberCkbAddress(secondaryController)) {
+      setErrorMessage(FIBER_CKB_ADDRESS_ERROR);
+      return false;
     }
 
     if (!Number.isFinite(limitNum) || limitNum < resolvedPolicy.limits.min || limitNum > resolvedPolicy.limits.max) {
@@ -340,6 +367,19 @@ export default function CreateSessionModal({
         return false;
       }
 
+      const invalidAmount = cleanedRecipientWallets.find((wallet) => !Number.isFinite(wallet.amount) || !wallet.amount || wallet.amount <= 0);
+      if (invalidAmount) {
+        setErrorMessage('Each recipient wallet needs a payout amount.');
+        return false;
+      }
+
+      const totalRecipientAmount = cleanedRecipientWallets.reduce((total, wallet) => total + (wallet.amount ?? 0), 0);
+      if (totalRecipientAmount > normalizedLimit) {
+        setErrorMessage('Recipient payout amounts cannot exceed the pass limit.');
+        return false;
+      }
+
+
       const uniqueAddresses = new Set(cleanedRecipientWallets.map((wallet) => wallet.address.toLowerCase()));
       if (uniqueAddresses.size !== cleanedRecipientWallets.length) {
         setErrorMessage('Recipient wallet addresses must be unique.');
@@ -374,10 +414,10 @@ export default function CreateSessionModal({
     return {
       name: currentAppName,
       serviceAddress: currentServiceAddress,
-      appId: appMode === 'verified' ? selectedApp?.id : 'manual',
-      appUrl: appMode === 'verified' ? selectedApp?.url : undefined,
-      appTrustLevel: appMode === 'verified' ? selectedApp?.trustLevel : 'manual',
-      appPermissions: appMode === 'verified' ? selectedApp?.permissions : ['Charge through FiberPass API', 'Read pass status'],
+      appId: 'manual',
+      appUrl: undefined,
+      appTrustLevel: secondaryController ? 'secondary-controller' : 'owner-controlled',
+      appPermissions: ['Spend from this pass within its rule', 'Read pass status'],
       chargePolicy: currentChargePolicy,
       paymentPurpose,
       recipientName: requiresRecipient ? primaryRecipient?.name : undefined,
@@ -397,7 +437,7 @@ export default function CreateSessionModal({
       expiryTime: expiry.toISOString(),
       autoMicroCharges: paymentPurpose === 'app_session' ? autoMicroCharges : true,
       singleUse: paymentPurpose === 'scheduled_release' && cleanedRecipientWallets.length <= 1 ? true : paymentPurpose === 'app_session' ? singleUse : false,
-      iconType: appMode === 'verified' ? selectedApp?.iconType ?? 'rpc' : 'rpc'
+      iconType: 'rpc'
     };
   };
 
@@ -423,7 +463,7 @@ export default function CreateSessionModal({
 
   const detailRows: Array<[string, string]> = [
     ['Type', purposeLabel(paymentPurpose)],
-    ['App', currentAppName || 'Not selected'],
+    ['Name', currentAppName || 'Not set'],
     ['Limit', formatAmount(normalizedLimit, currency)],
     ['Expiry', formatExpiry(expiryDateTime)]
   ];
@@ -442,6 +482,7 @@ export default function CreateSessionModal({
   }
 
   detailRows.push(['Platform fee estimate', formatAmount(platformFeeEstimate, currency, 8)]);
+  detailRows.push(['Controller', secondaryController ? 'Secondary address' : 'Connected wallet']);
   detailRows.push(['Fiber network fee estimate', formatAmount(networkFeeEstimate, currency, 8)]);
 
   return (
@@ -474,7 +515,7 @@ export default function CreateSessionModal({
             <div className="space-y-2">
               <h3 className="text-2xl font-bold text-on-surface">FiberPass Created</h3>
               <p className="text-sm text-on-surface-variant max-w-md">
-                {successName} can now charge within the approved limit until the pass is paused, closed, revoked, depleted, or expired.
+                {successName} is active. Payments follow the rule until the pass is paused, closed, revoked, depleted, or expired.
               </p>
             </div>
             <button
@@ -497,135 +538,46 @@ export default function CreateSessionModal({
 
               {step === 'details' ? (
                 <>
-                  <section className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">App</label>
-                      <div className="grid grid-cols-2 gap-1 p-1 bg-surface-container-lowest rounded-xl border border-outline-variant w-full max-w-[280px]">
-                        <button
-                          type="button"
-                          onClick={() => setAppMode('verified')}
-                          className={appMode === 'verified' ? 'py-2 rounded-lg text-xs font-bold bg-surface-variant text-on-surface border border-outline-variant/60' : 'py-2 rounded-lg text-xs font-bold text-on-surface-variant hover:text-on-surface'}
-                        >
-                          Verified
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAppMode('manual')}
-                          className={appMode === 'manual' ? 'py-2 rounded-lg text-xs font-bold bg-surface-variant text-on-surface border border-outline-variant/60' : 'py-2 rounded-lg text-xs font-bold text-on-surface-variant hover:text-on-surface'}
-                        >
-                          Manual
-                        </button>
-                      </div>
+                  <section className="grid grid-cols-1 lg:grid-cols-[1fr_0.8fr] gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="manual-service-name">Pass Name</label>
+                      <input
+                        id="manual-service-name"
+                        type="text"
+                        placeholder="e.g. Netflix, Claude Code, July invoice"
+                        value={manualServiceName}
+                        onChange={(event) => setManualServiceName(event.target.value)}
+                        className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
+                      />
                     </div>
 
-                    {appMode === 'verified' ? (
-                      <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-4">
-                        <div className="flex flex-col gap-3">
-                          <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
-                            <input
-                              type="text"
-                              placeholder={policyLoading ? 'Loading apps...' : 'Search verified Fiber apps'}
-                              value={appSearch}
-                              onChange={(event) => setAppSearch(event.target.value)}
-                              className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 pl-10 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
-                            />
-                          </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="payment-purpose">Payment Type</label>
+                      <select
+                        id="payment-purpose"
+                        value={paymentPurpose}
+                        onChange={(event) => handlePaymentPurposeChange(event.target.value as PaymentPurpose)}
+                        className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-3 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50"
+                      >
+                        {PAYMENT_PURPOSE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                          <div className="grid gap-2 max-h-[260px] overflow-y-auto pr-1">
-                            {filteredApps.length === 0 ? (
-                              <div className="border border-outline-variant border-dashed rounded-xl p-4 text-sm text-on-surface-variant">
-                                {verifiedApps.length === 0 ? 'No verified Fiber apps are available yet. Use manual mode with a CKB address.' : 'No verified Fiber apps match this search.'}
-                              </div>
-                            ) : filteredApps.map((app) => (
-                              <button
-                                key={app.id}
-                                type="button"
-                                onClick={() => setSelectedAppId(app.id)}
-                                className={(selectedApp?.id === app.id ? 'border-primary bg-primary/10 ' : 'border-outline-variant bg-surface-container ') + 'w-full text-left rounded-xl border p-4 transition-colors hover:border-primary/60'}
-                              >
-                                <div className="flex items-start gap-3">
-                                  <div className="w-9 h-9 rounded-lg border border-outline-variant bg-surface-container-highest flex items-center justify-center shrink-0">
-                                    {renderAppIcon(app.iconType)}
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="font-bold text-sm text-on-surface truncate">{app.name}</span>
-                                      <span className="text-[9px] uppercase tracking-wider font-bold text-secondary border border-secondary/30 rounded-full px-2 py-0.5 shrink-0">{app.trustLevel}</span>
-                                    </div>
-                                    <p className="text-xs text-on-surface-variant mt-1 line-clamp-2">{app.description}</p>
-                                    <p className="font-mono text-[10px] text-outline mt-2 truncate">{app.chargePolicy}</p>
-                                  </div>
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-4 flex flex-col gap-3 min-h-[220px]">
-                          {selectedApp ? (
-                            <>
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">Selected App</p>
-                                  <h3 className="font-bold text-on-surface mt-1">{selectedApp.name}</h3>
-                                </div>
-                                <a href={selectedApp.url} target="_blank" rel="noreferrer" className="text-primary hover:text-secondary transition-colors" title="Open app URL">
-                                  <ExternalLink className="w-4 h-4" />
-                                </a>
-                              </div>
-                              <div className="space-y-2 text-xs text-on-surface-variant">
-                                <div className="flex justify-between gap-3"><span>Category</span><span className="font-semibold text-on-surface">{selectedApp.category}</span></div>
-                                <div className="flex justify-between gap-3"><span>Default charge</span><span className="font-mono text-secondary">{formatAmount(selectedApp.defaultCharge, currency, 8)}</span></div>
-                                <div className="flex justify-between gap-3"><span>Fiber address</span><span className="font-mono text-[10px] text-on-surface truncate max-w-[180px]">{selectedApp.serviceAddress}</span></div>
-                              </div>
-                              <div className="border-t border-outline-variant/50 pt-3">
-                                <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2">Requested Permissions</p>
-                                <div className="flex flex-wrap gap-2">
-                                  {selectedApp.permissions.map((permission) => (
-                                    <span key={permission} className="text-[10px] rounded-full border border-outline-variant bg-surface-container-high px-2 py-1 text-on-surface-variant">
-                                      {permission}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            </>
-                          ) : (
-                            <div className="flex items-center justify-center h-full text-sm text-on-surface-variant">Select an app to preview details.</div>
-                          )}
-                        </div>
+                    <details className="lg:col-span-2 rounded-lg border border-outline-variant bg-surface-container/50 px-4 py-3">
+                      <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Advanced controller</summary>
+                      <div className="mt-3 grid grid-cols-1 gap-2">
+                        <input
+                          type="text"
+                          placeholder="Secondary controller CKB address"
+                          value={secondaryControllerAddress}
+                          onChange={(event) => setSecondaryControllerAddress(event.target.value)}
+                          className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-3 text-xs font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
+                        />
                       </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="manual-service-name">App Name</label>
-                          <input
-                            id="manual-service-name"
-                            type="text"
-                            placeholder="e.g. My API app"
-                            value={manualServiceName}
-                            onChange={(event) => setManualServiceName(event.target.value)}
-                            className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="manual-service-address">Fiber App Address</label>
-                          <div className="relative">
-                            <Link2 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-outline-variant w-4 h-4" />
-                            <input
-                              id="manual-service-address"
-                              type="text"
-                              placeholder="ckt1... or ckb1..."
-                              value={manualServiceAddress}
-                              onChange={(event) => setManualServiceAddress(event.target.value)}
-                              className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 pl-10 pr-4 text-sm font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    </details>
                   </section>
-
                   <section className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                     <div className="flex flex-col gap-3">
                       <div className="flex justify-between items-end">
@@ -688,68 +640,39 @@ export default function CreateSessionModal({
                   </section>
 
                   <section className="flex flex-col gap-3">
-                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Payment Type</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                      {PAYMENT_PURPOSE_OPTIONS.map((option) => {
-                        const selected = paymentPurpose === option.value;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => {
-                              setPaymentPurpose(option.value);
-                              setReleaseCadence(defaultCadenceForPurpose(option.value));
-                              setSingleUse(option.value === 'scheduled_release');
-                              setAutoMicroCharges(true);
-                            }}
-                            className={(selected ? 'border-primary bg-primary/10 text-on-surface ' : 'border-outline-variant bg-surface-container text-on-surface-variant hover:text-on-surface ') + 'rounded-xl border p-3 text-left transition-colors min-h-[112px] flex flex-col gap-2'}
-                          >
-                            <span className="w-8 h-8 rounded-lg border border-outline-variant bg-surface-container-highest flex items-center justify-center">
-                              {renderPurposeIcon(option.icon)}
-                            </span>
-                            <span className="font-bold text-sm leading-tight">{option.label}</span>
-                            <span className="text-[11px] leading-snug">{option.detail}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
                     {paymentPurpose === 'app_session' ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setAutoMicroCharges(!autoMicroCharges)}
-                          className="flex items-center justify-between p-4 border border-outline-variant rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer text-left"
-                        >
-                          <div className="pr-4 min-w-0">
-                            <span className="font-bold text-sm text-on-surface block">Automatic app charges</span>
-                            <span className="text-[11px] text-on-surface-variant leading-relaxed">App can charge while the pass has balance.</span>
-                          </div>
-                          <span className={autoMicroCharges ? 'w-11 h-6 rounded-full bg-secondary relative shrink-0' : 'w-11 h-6 rounded-full bg-surface-container-highest border border-outline-variant relative shrink-0'}>
-                            <span className={autoMicroCharges ? 'absolute top-[2px] left-[21px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full' : 'absolute top-[2px] left-[2px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full'} />
-                          </span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setSingleUse(!singleUse)}
-                          className="flex items-center justify-between p-4 border border-outline-variant rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer text-left"
-                        >
-                          <div className="pr-4 min-w-0">
-                            <span className="font-bold text-sm text-on-surface block">Settle after first charge</span>
-                            <span className="text-[11px] text-on-surface-variant leading-relaxed">Refund unused balance after one successful payment.</span>
-                          </div>
-                          <span className={singleUse ? 'w-11 h-6 rounded-full bg-secondary relative shrink-0' : 'w-11 h-6 rounded-full bg-surface-container-highest border border-outline-variant relative shrink-0'}>
-                            <span className={singleUse ? 'absolute top-[2px] left-[21px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full' : 'absolute top-[2px] left-[2px] bg-surface-container-lowest w-[18px] h-[18px] rounded-full'} />
-                          </span>
-                        </button>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl border border-outline-variant bg-surface-container/60 p-4">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="payment-behavior">Payment Behavior</label>
+                          <select
+                            id="payment-behavior"
+                            value={paymentBehavior}
+                            onChange={(event) => handlePaymentBehaviorChange(event.target.value)}
+                            className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50"
+                          >
+                            <option value="automatic">Repeat charges</option>
+                            <option value="manual">Owner-triggered only</option>
+                            <option value="single">Single payment</option>
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="payment-reference">Reference</label>
+                          <input
+                            id="payment-reference"
+                            type="text"
+                            placeholder="Plan, API key, or account id"
+                            value={paymentReference}
+                            onChange={(event) => setPaymentReference(event.target.value)}
+                            className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
+                          />
+                        </div>
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl border border-outline-variant bg-surface-container/60 p-4">
                         {requiresRecipient && (
                           <div className="md:col-span-2 flex flex-col gap-2">
                             <div className="flex items-center justify-between gap-3">
-                              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Recipient Wallets</label>
+                              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Recipient Payouts</label>
                               <button
                                 type="button"
                                 onClick={() => setRecipientWallets((wallets) => [...wallets, newRecipientWalletDraft()])}
@@ -762,7 +685,7 @@ export default function CreateSessionModal({
 
                             <div className="flex flex-col gap-2">
                               {recipientWallets.map((wallet, index) => (
-                                <div key={wallet.id} className="grid grid-cols-1 md:grid-cols-[0.75fr_1fr_auto] gap-2 rounded-lg border border-outline-variant/70 bg-surface-container-lowest/60 p-2">
+                                <div key={wallet.id} className="grid grid-cols-1 md:grid-cols-[0.7fr_1fr_0.45fr_auto] gap-2 rounded-lg border border-outline-variant/70 bg-surface-container-lowest/60 p-2">
                                   <input
                                     type="text"
                                     aria-label={`Recipient wallet ${index + 1} label`}
@@ -774,9 +697,19 @@ export default function CreateSessionModal({
                                   <input
                                     type="text"
                                     aria-label={`Recipient wallet ${index + 1} CKB address`}
-                                    placeholder="ckt1... or ckb1..."
+                                    placeholder="Recipient CKB address"
                                     value={wallet.address}
                                     onChange={(event) => setRecipientWallets((wallets) => wallets.map((item) => item.id === wallet.id ? { ...item, address: event.target.value } : item))}
+                                    className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2 px-3 text-sm font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
+                                  />
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min={resolvedPolicy.limits.min}
+                                    aria-label={`Recipient wallet ${index + 1} payout amount`}
+                                    placeholder="Amount"
+                                    value={wallet.amount}
+                                    onChange={(event) => setRecipientWallets((wallets) => wallets.map((item) => item.id === wallet.id ? { ...item, amount: event.target.value } : item))}
                                     className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2 px-3 text-sm font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
                                   />
                                   <button
@@ -788,6 +721,7 @@ export default function CreateSessionModal({
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
+
                                 </div>
                               ))}
                             </div>
@@ -860,7 +794,7 @@ export default function CreateSessionModal({
                             <input
                               id="condition-summary"
                               type="text"
-                              placeholder="e.g. Release after invoice arrives, service completed, or rent due"
+                              placeholder="e.g. Invoice approved, service completed, or rent due"
                               value={conditionSummary}
                               onChange={(event) => setConditionSummary(event.target.value)}
                               className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-4 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
@@ -870,7 +804,6 @@ export default function CreateSessionModal({
                       </div>
                     )}
                   </section>
-
                   <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-4">
                       <Wallet className="w-4 h-4 text-primary mb-2" />
@@ -895,7 +828,7 @@ export default function CreateSessionModal({
                     <div>
                       <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">Review Before Authorization</p>
                       <h3 className="text-xl font-bold text-on-surface mt-1">{currentAppName}</h3>
-                      <p className="font-mono text-[10px] text-on-surface-variant mt-1 break-all">{currentServiceAddress}</p>
+                      <p className="text-[11px] text-on-surface-variant mt-1">{secondaryController ? 'Secondary controller' : 'Connected wallet controller'}</p>
                     </div>
 
                     <div className="space-y-2">
@@ -917,7 +850,7 @@ export default function CreateSessionModal({
                     <div>
                       <h4 className="font-bold text-on-surface">Wallet Authorization</h4>
                       <p className="text-sm text-on-surface-variant mt-1 leading-relaxed">
-                        This creates a prepaid, revocable FiberPass for the selected app. The app cannot exceed the limit, charge after expiry, or charge after pause, close, or revoke.
+                        This creates a prepaid, revocable FiberPass. Payments cannot exceed the limit, run after expiry, or continue after pause, close, or revoke.
                       </p>
                     </div>
                     <div>
@@ -927,7 +860,7 @@ export default function CreateSessionModal({
                     <div>
                       <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant mb-2">Permissions</p>
                       <div className="flex flex-wrap gap-2">
-                        {(appMode === 'verified' ? selectedApp?.permissions ?? [] : ['Charge through FiberPass API', 'Read pass status']).map((permission) => (
+                        {['Spend from this pass within its rule', 'Read pass status'].map((permission) => (
                           <span key={permission} className="text-[10px] rounded-full border border-outline-variant bg-surface-container-high px-2 py-1 text-on-surface-variant">
                             {permission}
                           </span>

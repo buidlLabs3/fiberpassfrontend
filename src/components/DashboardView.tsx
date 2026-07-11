@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Bolt,
   Plus,
@@ -19,6 +19,9 @@ import {
   AlertCircle,
   CheckCircle2,
   RefreshCw,
+  CalendarClock,
+  ShieldCheck,
+  X,
   Wallet
 } from 'lucide-react';
 import { Session } from '../types';
@@ -34,6 +37,240 @@ function sessionPurposeLabel(session: Session): string {
 function sessionScheduleLabel(session: Session): string {
   if (session.nextReleaseAt) return 'Next ' + new Date(session.nextReleaseAt).toLocaleString();
   return session.expiryAt ? new Date(session.expiryAt).toLocaleString() : session.expiryTime;
+}
+
+function formatDateTime(value?: string): string {
+  if (!value) return 'Not set';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
+function shortValue(value?: string): string {
+  if (!value) return 'Not set';
+  if (value.length <= 18) return value;
+  return value.slice(0, 10) + '...' + value.slice(-8);
+}
+
+function yesNo(value: boolean): string {
+  return value ? 'Yes' : 'No';
+}
+
+function recipientWalletsForSession(session: Session) {
+  const wallets = session.recipientWallets ?? [];
+  if (wallets.length > 0) return wallets;
+  if (!session.recipientAddress) return [];
+  return [{ name: session.recipientName ?? 'Recipient', address: session.recipientAddress }];
+}
+
+function recipientStatusClass(status?: string): string {
+  if (status === 'paid') return 'border-secondary/30 bg-secondary/10 text-secondary';
+  if (status === 'processing') return 'border-primary/30 bg-primary/10 text-primary';
+  if (status === 'failed') return 'border-error/30 bg-error/10 text-error';
+  return 'border-outline-variant bg-surface-container-high text-on-surface-variant';
+}
+
+function DetailRow({ label, value, mono = false }: { label: string; value?: React.ReactNode; mono?: boolean }) {
+  return (
+    <div className="flex flex-col gap-1 min-w-0">
+      <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">{label}</span>
+      <span className={(mono ? 'font-mono ' : '') + 'text-sm text-on-surface break-words'}>{value ?? 'Not set'}</span>
+    </div>
+  );
+}
+
+function SessionDetailModal({ session, onClose }: { session: Session; onClose: () => void }) {
+  const wallets = recipientWalletsForSession(session);
+  const remainingBalance = session.remainingBalance ?? Math.max(0, session.limit - session.spent);
+  const recentAttempts = session.chargeAttempts.slice(0, 8);
+  const recentLogs = session.logs.slice(0, 8);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-md p-4" onClick={onClose}>
+      <div className="w-full max-w-5xl max-h-[92vh] overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-low shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <header className="flex items-start justify-between gap-4 border-b border-outline-variant/60 bg-surface-container/60 px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">FiberPass Details</p>
+            <h3 className="mt-1 text-xl font-bold text-on-surface truncate">{session.name}</h3>
+            <p className="mt-1 font-mono text-[11px] text-on-surface-variant break-all">{session.serviceAddress}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-2 text-on-surface-variant hover:bg-surface-variant hover:text-on-surface"
+            title="Close details"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </header>
+
+        <div className="max-h-[calc(92vh-88px)] overflow-y-auto p-5 space-y-5">
+          <section className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="rounded-xl border border-outline-variant bg-surface-container/70 p-4">
+              <DetailRow label="Type" value={sessionPurposeLabel(session)} />
+            </div>
+            <div className="rounded-xl border border-outline-variant bg-surface-container/70 p-4">
+              <DetailRow label="Status" value={session.status} />
+            </div>
+            <div className="rounded-xl border border-outline-variant bg-surface-container/70 p-4">
+              <DetailRow label="Spent" value={formatCurrencyAmount(session.spent, session.currency)} mono />
+            </div>
+            <div className="rounded-xl border border-outline-variant bg-surface-container/70 p-4">
+              <DetailRow label="Remaining" value={formatCurrencyAmount(remainingBalance, session.currency)} mono />
+            </div>
+          </section>
+
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-4 space-y-4">
+              <div className="flex items-center gap-2 text-primary">
+                <CalendarClock className="h-4 w-4" />
+                <h4 className="text-sm font-bold text-on-surface">Schedule And Policy</h4>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <DetailRow label="Policy" value={session.chargePolicy ?? sessionPurposeLabel(session)} />
+                <DetailRow label="Reference" value={session.paymentReference} />
+                <DetailRow label="Condition" value={session.conditionSummary} />
+                <DetailRow label="Cadence" value={session.releaseCadence ?? 'none'} />
+                <DetailRow label="Next Release" value={formatDateTime(session.nextReleaseAt)} />
+                <DetailRow label="Expiry" value={formatDateTime(session.expiryAt ?? session.expiryTime)} />
+                <DetailRow label="Per-Payment Cap" value={session.maxChargeAmount == null ? 'Not set' : formatCurrencyAmount(session.maxChargeAmount, session.currency)} mono />
+                <DetailRow label="Single Use" value={yesNo(session.singleUse)} />
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-4 space-y-4">
+              <div className="flex items-center gap-2 text-secondary">
+                <ShieldCheck className="h-4 w-4" />
+                <h4 className="text-sm font-bold text-on-surface">Authorization</h4>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <DetailRow label="App Id" value={session.appId ?? 'manual'} mono />
+                <DetailRow label="Trust" value={session.appTrustLevel ?? 'manual'} />
+                <DetailRow label="Authorized Address" value={session.serviceAddress} mono />
+                <DetailRow label="App URL" value={session.appUrl} />
+                <DetailRow label="Auto Charges" value={yesNo(session.autoMicroCharges)} />
+                <DetailRow label="Created" value={formatDateTime(session.createdAt)} />
+              </div>
+              {session.appPermissions && session.appPermissions.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {session.appPermissions.map((permission) => (
+                    <span key={permission} className="rounded-full border border-outline-variant bg-surface-container-high px-2 py-1 text-[10px] text-on-surface-variant">
+                      {permission}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {wallets.length > 0 && (
+            <section className="rounded-xl border border-outline-variant bg-surface-container/60 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="text-sm font-bold text-on-surface">Recipient Wallets</h4>
+                <span className="rounded-full border border-outline-variant bg-surface-container-high px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">{wallets.length}</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {wallets.map((wallet, index) => (
+                  <article key={wallet.address + '-' + index} className="rounded-lg border border-outline-variant/70 bg-surface-container-lowest/50 p-3">
+                    <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-bold text-sm text-on-surface">{wallet.name}</span>
+                          <span className={'rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ' + recipientStatusClass(wallet.status)}>{wallet.status ?? 'pending'}</span>
+                        </div>
+                        <p className="mt-1 font-mono text-[11px] text-on-surface-variant break-all">{wallet.address}</p>
+                        {wallet.fiberInvoice && (
+                          <div className="mt-2 rounded-md border border-outline-variant/50 bg-surface-container/60 p-2">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-on-surface-variant">Payment Request</span>
+                            <p className="mt-1 font-mono text-[10px] text-outline break-all">{wallet.fiberInvoice}</p>
+                          </div>
+                        )}
+                        {wallet.lastFailureMessage && <p className="mt-2 text-xs text-error">{wallet.lastFailureCode}: {wallet.lastFailureMessage}</p>}
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:min-w-[420px]">
+                        <DetailRow label="Amount" value={wallet.amount == null ? 'Not set' : formatCurrencyAmount(wallet.amount, session.currency)} mono />
+                        <DetailRow label="Last Attempt" value={formatDateTime(wallet.lastAttemptAt)} />
+                        <DetailRow label="Paid At" value={formatDateTime(wallet.paidAt)} />
+                        <DetailRow label="Attempt" value={shortValue(wallet.chargeAttemptId)} mono />
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-4 space-y-4">
+              <h4 className="text-sm font-bold text-on-surface">Fiber State</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <DetailRow label="Provider" value={session.fiberProvider ?? 'rpc'} />
+                <DetailRow label="Network" value={session.fiberNetwork} />
+                <DetailRow label="Fiber Status" value={session.fiberStatus ?? 'pending'} />
+                <DetailRow label="Fiber Session" value={shortValue(session.fiberSessionId)} mono />
+                <DetailRow label="Proof" value={shortValue(session.fiberProofId)} mono />
+                <DetailRow label="Last Charge" value={shortValue(session.lastChargeProofId)} mono />
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-4 space-y-4">
+              <h4 className="text-sm font-bold text-on-surface">Fees And Limits</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <DetailRow label="Limit" value={formatCurrencyAmount(session.limit, session.currency)} mono />
+                <DetailRow label="Spent" value={formatCurrencyAmount(session.spent, session.currency)} mono />
+                <DetailRow label="Remaining" value={formatCurrencyAmount(remainingBalance, session.currency)} mono />
+                <DetailRow label="Platform Fee" value={formatCurrencyAmount(session.platformFeeEstimate ?? 0, session.currency, 8)} mono />
+                <DetailRow label="Network Fee" value={formatCurrencyAmount(session.networkFeeEstimate ?? 0, session.currency, 8)} mono />
+                <DetailRow label="Currency" value={session.currency} />
+              </div>
+            </div>
+          </section>
+
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="text-sm font-bold text-on-surface">Recent Charge Attempts</h4>
+                <span className="font-mono text-[10px] text-on-surface-variant">{session.chargeAttempts.length}</span>
+              </div>
+              {recentAttempts.length === 0 ? (
+                <p className="text-sm text-on-surface-variant">No charge attempts yet.</p>
+              ) : recentAttempts.map((attempt) => (
+                <div key={attempt.id} className="rounded-lg border border-outline-variant/60 bg-surface-container-lowest/40 p-3">
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="font-semibold text-on-surface truncate">{attempt.type}</span>
+                    <span className="font-mono text-on-surface">{formatCurrencyAmount(attempt.amount, attempt.currency, 8)}</span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-on-surface-variant">
+                    <span>{attempt.status}</span>
+                    <span>{formatDateTime(attempt.createdAt)}</span>
+                    {attempt.failureMessage && <span className="text-error">{attempt.failureCode}: {attempt.failureMessage}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="text-sm font-bold text-on-surface">Activity Log</h4>
+                <span className="font-mono text-[10px] text-on-surface-variant">{session.logs.length}</span>
+              </div>
+              {recentLogs.length === 0 ? (
+                <p className="text-sm text-on-surface-variant">No activity yet.</p>
+              ) : recentLogs.map((log) => (
+                <div key={log.id} className="flex items-center justify-between gap-3 rounded-lg border border-outline-variant/60 bg-surface-container-lowest/40 p-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-on-surface truncate">{log.type}</p>
+                    <p className="text-[10px] text-on-surface-variant">{log.timestamp}</p>
+                  </div>
+                  <span className="font-mono text-on-surface">{formatCurrencyAmount(log.amount, session.currency, 8)}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 interface DashboardViewProps {
@@ -65,6 +302,23 @@ export default function DashboardView({
   onCreateSessionClick,
   onLoadFundsClick
 }: DashboardViewProps) {
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const selectedSession = useMemo(
+    () => activeSessions.find((session) => session.id === selectedSessionId) ?? null,
+    [activeSessions, selectedSessionId]
+  );
+
+  const openSessionDetails = (id: string) => {
+    setSelectedSessionId(id);
+  };
+
+  const handleSessionKeyDown = (event: React.KeyboardEvent<HTMLElement>, id: string) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openSessionDetails(id);
+    }
+  };
+
   const renderSessionIcon = (type: string) => {
     switch (type) {
       case 'cloud':
@@ -177,7 +431,11 @@ export default function DashboardView({
               return (
                 <article
                   key={session.id}
-                  className="bg-surface-container-low/80 backdrop-blur-md border border-outline-variant rounded-2xl p-6 flex flex-col gap-5 relative overflow-hidden group hover:border-primary/40 transition-all duration-300 shadow-md hover:shadow-lg"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openSessionDetails(session.id)}
+                  onKeyDown={(event) => handleSessionKeyDown(event, session.id)}
+                  className="bg-surface-container-low/80 backdrop-blur-md border border-outline-variant rounded-2xl p-6 flex flex-col gap-5 relative overflow-hidden group hover:border-primary/40 transition-all duration-300 shadow-md hover:shadow-lg cursor-pointer focus:outline-none focus:border-primary/60"
                 >
                   <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -z-10 group-hover:bg-primary/10 transition-all duration-500" />
 
@@ -241,7 +499,7 @@ export default function DashboardView({
 
                   <div className="grid grid-cols-2 gap-2 mt-2 pt-4 border-t border-outline-variant/40">
                     <button
-                      onClick={() => onTopUpSession(session.id)}
+                      onClick={(event) => { event.stopPropagation(); onTopUpSession(session.id); }}
                       disabled={isActionPending}
                       className="bg-surface-container hover:bg-primary/10 border border-outline-variant hover:border-primary/40 text-primary transition-all duration-200 rounded-lg py-2 text-xs font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                       title={"Top up session with 1.00 " + walletCurrency}
@@ -250,7 +508,7 @@ export default function DashboardView({
                     </button>
 
                     <button
-                      onClick={() => onTogglePauseSession(session.id)}
+                      onClick={(event) => { event.stopPropagation(); onTogglePauseSession(session.id); }}
                       disabled={isActionPending}
                       className={pauseButtonClass}
                       title={isPaused ? 'Resume stream' : 'Pause stream'}
@@ -274,7 +532,7 @@ export default function DashboardView({
                     </button>
 
                     <button
-                      onClick={() => onCloseSession(session.id)}
+                      onClick={(event) => { event.stopPropagation(); onCloseSession(session.id); }}
                       disabled={isActionPending}
                       className="flex items-center justify-center gap-1 bg-surface-container text-secondary hover:bg-secondary/10 border border-secondary/20 hover:border-secondary/40 transition-all duration-200 rounded-lg py-2 text-xs font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                       title="Close and settle session"
@@ -284,7 +542,7 @@ export default function DashboardView({
                     </button>
 
                     <button
-                      onClick={() => onRevokeSession(session.id)}
+                      onClick={(event) => { event.stopPropagation(); onRevokeSession(session.id); }}
                       disabled={isActionPending}
                       className="flex items-center justify-center gap-1 bg-surface-container text-error hover:bg-error/10 border border-error/20 hover:border-error/40 transition-all duration-200 rounded-lg py-2 text-xs font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                       title="Revoke and settle session"
@@ -299,6 +557,10 @@ export default function DashboardView({
           </div>
         )}
       </section>
+
+      {selectedSession && (
+        <SessionDetailModal session={selectedSession} onClose={() => setSelectedSessionId(null)} />
+      )}
     </div>
   );
 }

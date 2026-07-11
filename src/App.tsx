@@ -556,6 +556,7 @@ export default function App() {
             onClose={() => setIsModalOpen(false)}
             onCreateSession={handleCreateSession}
             walletBalance={wallet.balance}
+            connectedWalletAddress={wallet.address}
             isSubmitting={createSessionLoading}
           />
 

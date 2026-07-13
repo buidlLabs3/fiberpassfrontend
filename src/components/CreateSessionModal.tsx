@@ -296,9 +296,9 @@ export default function CreateSessionModal({
       return 'Subscription may auto-charge ' + (normalizedMaxCharge ? 'up to ' + formatAmount(normalizedMaxCharge, currency, 8) + ' ' : '') + cadenceText(effectiveReleaseCadence) + ' while the pass is active.';
     }
     if (paymentPurpose === 'scheduled_release') {
-      return 'Reserved funds auto-release once' + (recipientSummary ? ' to ' + recipientSummary : '') + ' on schedule. Fiber invoices execute through Fiber Network; CKB addresses settle from the vault.';
+      return 'Reserved funds auto-release once' + (recipientSummary ? ' to ' + recipientSummary : '') + ' on schedule through Fiber Network. Each recipient must provide a Fiber invoice/payment request.';
     }
-    return 'Reserved funds auto-release ' + cadenceText(effectiveReleaseCadence) + (recipientSummary ? ' to ' + recipientSummary : '') + '. Fiber invoices execute through Fiber Network; CKB addresses settle from the vault.';
+    return 'Reserved funds auto-release ' + cadenceText(effectiveReleaseCadence) + (recipientSummary ? ' to ' + recipientSummary : '') + ' through Fiber Network. Each recipient must provide a Fiber invoice/payment request.';
   })();
 
   const paymentBehavior = singleUse ? 'single' : autoMicroCharges ? 'automatic' : 'manual';
@@ -363,24 +363,22 @@ export default function CreateSessionModal({
 
     if (requiresRecipient) {
       if (cleanedRecipientWallets.length === 0) {
-        setErrorMessage('Add at least one recipient email or CKB wallet for this payment rule.');
+        setErrorMessage('Add at least one Fiber invoice/payment request or recipient email invite for this payment rule.');
         return false;
       }
 
       const invalidDestination = cleanedRecipientWallets.find((wallet) => {
         if (!wallet.name) return true;
-        if (!wallet.email && !wallet.address && !wallet.fiberInvoice) return true;
+        if (!wallet.email && !wallet.fiberInvoice) return true;
         if (wallet.email && !isRecipientEmail(wallet.email)) return true;
-        if (wallet.address && !isFiberCkbAddress(wallet.address)) return true;
         if (wallet.fiberInvoice && wallet.fiberInvoice.length < 16) return true;
         return false;
       });
       if (invalidDestination) {
         if (!invalidDestination.name) setErrorMessage('Each recipient needs a label.');
-        else if (!invalidDestination.email && !invalidDestination.address && !invalidDestination.fiberInvoice) setErrorMessage('Each recipient needs a Fiber invoice, email invite, or CKB wallet address.');
+        else if (!invalidDestination.email && !invalidDestination.fiberInvoice) setErrorMessage('Each recipient needs a Fiber invoice/payment request or an email invite to collect one.');
         else if (invalidDestination.email && !isRecipientEmail(invalidDestination.email)) setErrorMessage('Enter a valid recipient email address.');
-        else if (invalidDestination.fiberInvoice && invalidDestination.fiberInvoice.length < 16) setErrorMessage('Fiber payment request is too short. Paste the full invoice/payment request.');
-        else setErrorMessage(FIBER_CKB_ADDRESS_ERROR);
+        else setErrorMessage('Fiber payment request is too short. Paste the full invoice/payment request.');
         return false;
       }
 
@@ -396,11 +394,6 @@ export default function CreateSessionModal({
         return false;
       }
 
-      const addresses = cleanedRecipientWallets.map((wallet) => wallet.address?.toLowerCase()).filter((value): value is string => Boolean(value));
-      if (new Set(addresses).size !== addresses.length) {
-        setErrorMessage('Recipient wallet addresses must be unique.');
-        return false;
-      }
 
       const fiberInvoices = cleanedRecipientWallets.map((wallet) => wallet.fiberInvoice).filter((value): value is string => Boolean(value));
       if (new Set(fiberInvoices).size !== fiberInvoices.length) {
@@ -449,7 +442,7 @@ export default function CreateSessionModal({
       chargePolicy: currentChargePolicy,
       paymentPurpose,
       recipientName: requiresRecipient ? primaryRecipient?.name : undefined,
-      recipientAddress: requiresRecipient ? primaryRecipient?.address : undefined,
+      recipientAddress: undefined,
       recipientWallets: requiresRecipient ? cleanedRecipientWallets : undefined,
       paymentReference: paymentReference.trim() || undefined,
       releaseCadence: effectiveReleaseCadence,
@@ -713,7 +706,7 @@ export default function CreateSessionModal({
 
                             <div className="flex flex-col gap-2">
                               {recipientWallets.map((wallet, index) => (
-                                <div key={wallet.id} className="grid grid-cols-1 md:grid-cols-[0.7fr_1fr_1fr_1fr_0.45fr_auto] gap-2 rounded-lg border border-outline-variant/70 bg-surface-container-lowest/60 p-2">
+                                <div key={wallet.id} className="grid grid-cols-1 md:grid-cols-[0.8fr_1fr_1.4fr_0.45fr_auto] gap-2 rounded-lg border border-outline-variant/70 bg-surface-container-lowest/60 p-2">
                                   <input
                                     type="text"
                                     aria-label={`Recipient wallet ${index + 1} label`}
@@ -732,16 +725,8 @@ export default function CreateSessionModal({
                                   />
                                   <input
                                     type="text"
-                                    aria-label={`Recipient ${index + 1} CKB address`}
-                                    placeholder="CKB address (optional)"
-                                    value={wallet.address}
-                                    onChange={(event) => setRecipientWallets((wallets) => wallets.map((item) => item.id === wallet.id ? { ...item, address: event.target.value } : item))}
-                                    className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2 px-3 text-sm font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
-                                  />
-                                  <input
-                                    type="text"
                                     aria-label={`Recipient ${index + 1} Fiber payment request`}
-                                    placeholder="Fiber invoice/request (optional)"
+                                    placeholder="Fiber invoice/request"
                                     value={wallet.fiberInvoice}
                                     onChange={(event) => setRecipientWallets((wallets) => wallets.map((item) => item.id === wallet.id ? { ...item, fiberInvoice: event.target.value } : item))}
                                     className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2 px-3 text-sm font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"

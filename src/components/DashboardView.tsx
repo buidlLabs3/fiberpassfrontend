@@ -262,7 +262,10 @@ export function SessionDetailModal({ session, now = Date.now(), onClose, onResen
                         <DetailRow label="Last Attempt" value={formatDateTime(wallet.lastAttemptAt)} />
                         <DetailRow label="Paid At" value={formatDateTime(wallet.paidAt)} />
                         <DetailRow label="Attempt" value={shortValue(wallet.chargeAttemptId)} mono />
-                        <DetailRow label="Tx Hash" value={<ProofLink proofId={wallet.payoutProofId} explorerUrl={wallet.payoutExplorerUrl} />} mono />
+                        <DetailRow label="Bridge Tx" value={shortValue(wallet.fiberLiquidityBridgeTxHash)} mono />
+                        <DetailRow label="Bridge" value={wallet.fiberLiquidityBridgeStatus ?? 'Not started'} />
+                        <DetailRow label="Channel" value={shortValue(wallet.fiberChannelOpenProofId)} mono />
+                        <DetailRow label="Proof" value={<ProofLink proofId={wallet.payoutProofId} explorerUrl={wallet.payoutExplorerUrl} />} mono />
                         <DetailRow label="Receipt Email" value={wallet.payoutNotificationStatus ?? (wallet.email ? 'pending' : 'not required')} />
                       </div>
                     </div>

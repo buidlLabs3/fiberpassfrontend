@@ -30,6 +30,13 @@ export interface RecipientWallet {
   payoutNotifiedAt?: string;
   payoutNotificationStatus?: 'not_required' | 'pending' | 'sent' | 'failed';
   payoutNotificationFailure?: string;
+  fiberLiquidityBridgeTxHash?: string;
+  fiberLiquidityBridgeAmountMinor?: number;
+  fiberLiquidityBridgeStatus?: string;
+  fiberLiquidityBridgeCreatedAt?: string;
+  fiberChannelOpenProofId?: string;
+  fiberChannelOpenAmountMinor?: number;
+  fiberChannelOpenRequestedAt?: string;
 }
 
 export interface TransactionLog {

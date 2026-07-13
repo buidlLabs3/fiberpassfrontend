@@ -7,7 +7,6 @@ import React, { useEffect, useState } from 'react';
 import { AlertCircle, Bolt, CheckCircle2, LoaderCircle, Wallet } from 'lucide-react';
 import { type RecipientClaim } from '../types';
 import { formatCurrencyAmount } from '../lib/currency';
-import { FIBER_CKB_ADDRESS_ERROR, isFiberCkbAddress } from '../lib/fiberAddress';
 import { getApiErrorMessage } from '../lib/apiClient';
 import { sessionsApi } from '../lib/sessionsApi';
 
@@ -36,9 +35,7 @@ function amountLabel(claim: RecipientClaim | null): string {
 
 export default function RecipientClaimView({ token }: RecipientClaimViewProps) {
   const [claim, setClaim] = useState<RecipientClaim | null>(null);
-  const [address, setAddress] = useState('');
   const [fiberInvoice, setFiberInvoice] = useState('');
-  const [destinationMode, setDestinationMode] = useState<'fiber' | 'ckb'>('fiber');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -58,19 +55,13 @@ export default function RecipientClaimView({ token }: RecipientClaimViewProps) {
     event.preventDefault();
     setError('');
     const cleanInvoice = fiberInvoice.trim();
-    const cleanAddress = address.trim();
-    if (destinationMode === 'fiber') {
-      if (cleanInvoice.length < 16 || /\s/.test(cleanInvoice)) {
-        setError('Paste the full Fiber invoice/payment request.');
-        return;
-      }
-    } else if (!isFiberCkbAddress(cleanAddress)) {
-      setError(FIBER_CKB_ADDRESS_ERROR);
+    if (cleanInvoice.length < 16 || /\s/.test(cleanInvoice)) {
+      setError('Paste the full Fiber invoice/payment request.');
       return;
     }
     setIsSubmitting(true);
     try {
-      setClaim(await sessionsApi.claimRecipientWallet(token, destinationMode === 'fiber' ? { fiberInvoice: cleanInvoice } : { address: cleanAddress }, browserTimeZone()));
+      setClaim(await sessionsApi.claimRecipientWallet(token, { fiberInvoice: cleanInvoice }, browserTimeZone()));
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, 'Could not save recipient wallet.'));
     } finally {
@@ -81,7 +72,7 @@ export default function RecipientClaimView({ token }: RecipientClaimViewProps) {
   const isClaimable = claim?.status === 'pending';
   const isDone = claim?.status === 'claimed';
   const isUnavailable = claim?.status === 'expired' || claim?.status === 'not_found';
-  const message = isDone ? 'Payment details saved. Payment will release automatically at the scheduled time.' : isUnavailable ? (claim?.status === 'expired' ? 'This payment link has expired.' : 'This payment link was not found.') : 'Add a Fiber invoice for Fiber payout, or use a CKB address for vault payout.';
+  const message = isDone ? 'Fiber payment request saved. Payment will release automatically at the scheduled time.' : isUnavailable ? (claim?.status === 'expired' ? 'This payment link has expired.' : 'This payment link was not found.') : 'Add a Fiber invoice/payment request so FiberPass can release this payout through Fiber Network.';
 
   return (
     <div className="min-h-screen bg-background text-on-surface flex items-center justify-center px-4 py-10">
@@ -108,22 +99,11 @@ export default function RecipientClaimView({ token }: RecipientClaimViewProps) {
               {error && <div className="rounded-xl border border-error/30 bg-error/10 p-3 text-xs font-semibold text-error">{error}</div>}
               {isClaimable && (
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-2 rounded-xl border border-outline-variant bg-surface-container/70 p-1">
-                    <button type="button" onClick={() => setDestinationMode('fiber')} className={(destinationMode === 'fiber' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface') + ' rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wider'}>Fiber invoice</button>
-                    <button type="button" onClick={() => setDestinationMode('ckb')} className={(destinationMode === 'ckb' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface') + ' rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wider'}>CKB address</button>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-on-surface-variant" htmlFor="recipient-fiber-invoice">Fiber invoice/request</label>
+                    <textarea id="recipient-fiber-invoice" value={fiberInvoice} onChange={(event) => setFiberInvoice(event.target.value)} rows={4} placeholder="Paste full Fiber payment request" className="w-full resize-y rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 font-mono text-sm text-on-surface placeholder:text-outline-variant focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50" />
                   </div>
-                  {destinationMode === 'fiber' ? (
-                    <div className="space-y-2">
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-on-surface-variant" htmlFor="recipient-fiber-invoice">Fiber invoice/request</label>
-                      <textarea id="recipient-fiber-invoice" value={fiberInvoice} onChange={(event) => setFiberInvoice(event.target.value)} rows={4} placeholder="Paste full Fiber payment request" className="w-full resize-y rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 font-mono text-sm text-on-surface placeholder:text-outline-variant focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-on-surface-variant" htmlFor="recipient-wallet">CKB wallet address</label>
-                      <input id="recipient-wallet" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="ckt1... or ckb1..." className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 font-mono text-sm text-on-surface placeholder:text-outline-variant focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                    </div>
-                  )}
-                  <button type="submit" disabled={isSubmitting} className="w-full rounded-xl bg-primary px-4 py-3 text-xs font-bold uppercase tracking-wider text-on-primary hover:bg-primary-fixed disabled:opacity-70 flex items-center justify-center gap-2">{isSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />} Save Payment Details</button>
+                  <button type="submit" disabled={isSubmitting} className="w-full rounded-xl bg-primary px-4 py-3 text-xs font-bold uppercase tracking-wider text-on-primary hover:bg-primary-fixed disabled:opacity-70 flex items-center justify-center gap-2">{isSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />} Save Fiber Request</button>
                 </form>
               )}
               <button type="button" onClick={() => { window.location.href = '/'; }} className="w-full rounded-xl border border-outline-variant bg-surface-container px-4 py-3 text-xs font-bold uppercase tracking-wider text-primary hover:border-primary/50">Try FiberPass</button>

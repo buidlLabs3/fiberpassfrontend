@@ -142,4 +142,6 @@ export interface RecipientClaim {
   reference?: string;
   conditionSummary?: string;
   recipientTimeZone?: string;
+  hasAddress?: boolean;
+  hasFiberInvoice?: boolean;
 }

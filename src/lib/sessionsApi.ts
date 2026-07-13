@@ -133,10 +133,10 @@ export const sessionsApi = {
   getRecipientClaim: (token: string) =>
     apiRequest<RecipientClaim>('/recipient-claims/' + encodeURIComponent(token), { auth: false }),
 
-  claimRecipientWallet: (token: string, address: string, timeZone?: string) =>
+  claimRecipientWallet: (token: string, destination: { address?: string; fiberInvoice?: string }, timeZone?: string) =>
     apiRequest<RecipientClaim>('/recipient-claims/' + encodeURIComponent(token), {
       method: 'POST',
       auth: false,
-      body: JSON.stringify({ address, timeZone })
+      body: JSON.stringify({ ...destination, timeZone })
     })
 };

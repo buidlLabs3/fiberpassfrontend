@@ -26,7 +26,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { Session } from '../types';
-import { type WalletActivity, type WalletChainState } from '../lib/walletApi';
+import { type WalletChainState } from '../lib/walletApi';
 import { formatCurrencyAmount } from '../lib/currency';
 
 function sessionPurposeLabel(session: Session): string {
@@ -92,17 +92,6 @@ function ProofLink({ proofId, explorerUrl }: { proofId?: string; explorerUrl?: s
   );
 }
 
-function activityTimestampLabel(activity: WalletActivity): string {
-  if (activity.timestamp) return formatDateTime(activity.timestamp);
-  if (activity.blockNumber) return 'Block ' + Number(BigInt(activity.blockNumber)).toLocaleString('en-US');
-  return 'Chain activity';
-}
-
-function activityAmountLabel(activity: WalletActivity): string {
-  if (activity.amount == null) return activity.txHash ? 'Tx' : activity.source;
-  return formatCurrencyAmount(activity.amount, activity.currency, 8);
-}
-
 function chainStatusLabel(status?: string): string {
   if (status === 'ok') return 'Live';
   if (status === 'not_configured') return 'Not configured';
@@ -110,7 +99,7 @@ function chainStatusLabel(status?: string): string {
   return 'Pending';
 }
 
-function SessionDetailModal({ session, onClose, onResendRecipientInvites }: { session: Session; onClose: () => void; onResendRecipientInvites: (id: string) => void }) {
+export function SessionDetailModal({ session, onClose, onResendRecipientInvites }: { session: Session; onClose: () => void; onResendRecipientInvites: (id: string) => void }) {
   const wallets = recipientWalletsForSession(session);
   const remainingBalance = session.remainingBalance ?? Math.max(0, session.limit - session.spent);
   const recentAttempts = session.chargeAttempts.slice(0, 8);
@@ -329,7 +318,6 @@ interface DashboardViewProps {
   walletCurrency: string;
   totalActivePassValue: number;
   walletChain?: WalletChainState | null;
-  walletActivities?: WalletActivity[];
   fundingLoading?: boolean;
   onSyncWalletFunding: () => void;
   isLoading?: boolean;
@@ -349,7 +337,6 @@ export default function DashboardView({
   walletCurrency,
   totalActivePassValue,
   walletChain = null,
-  walletActivities = [],
   fundingLoading = false,
   onSyncWalletFunding,
   isLoading = false,
@@ -367,10 +354,6 @@ export default function DashboardView({
     () => activeSessions.find((session) => session.id === selectedSessionId) ?? null,
     [activeSessions, selectedSessionId]
   );
-  const sessionsById = useMemo(
-    () => new Map(activeSessions.map((session) => [session.id, session])),
-    [activeSessions]
-  );
 
   const openSessionDetails = (id: string) => {
     setSelectedSessionId(id);
@@ -383,9 +366,6 @@ export default function DashboardView({
     }
   };
 
-  const recentWalletActivities = walletActivities
-    .filter((activity) => activity.label !== 'JoyID wallet chain activity')
-    .slice(0, 6);
   const vaultBalance = walletChain?.vault;
 
   const renderSessionIcon = (type: string) => {
@@ -471,52 +451,6 @@ export default function DashboardView({
         </button>
       </header>
 
-      {recentWalletActivities.length > 0 && (
-        <section className="rounded-2xl border border-outline-variant bg-surface-container-low/60 p-5 shadow-md">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-on-surface">Wallet Activity</h2>
-              <p className="text-xs text-on-surface-variant">Vault funding, payouts, and payment attempts for this connected wallet.</p>
-            </div>
-            {walletChain?.lastSyncedAt && <span className="font-mono text-[10px] text-on-surface-variant">Synced {formatDateTime(walletChain.lastSyncedAt)}</span>}
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {recentWalletActivities.map((activity) => {
-              const linkedSession = activity.referenceId ? sessionsById.get(activity.referenceId) : undefined;
-              const isLinked = Boolean(linkedSession);
-              return (
-                <article
-                  key={activity.id}
-                  role={isLinked ? 'button' : undefined}
-                  tabIndex={isLinked ? 0 : undefined}
-                  onClick={() => { if (linkedSession) openSessionDetails(linkedSession.id); }}
-                  onKeyDown={(event) => {
-                    if (!linkedSession) return;
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      openSessionDetails(linkedSession.id);
-                    }
-                  }}
-                  className={'rounded-xl border border-outline-variant/70 bg-surface-container/60 p-3 ' + (isLinked ? 'cursor-pointer transition-colors hover:border-primary/60 hover:bg-surface-container-high/70' : '')}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-on-surface">{activity.label}</p>
-                      <p className="mt-1 text-[10px] text-on-surface-variant">{activity.source} · {activity.status ?? activity.type} · {activityTimestampLabel(activity)}</p>
-                      {activity.txHash && (
-                        <p className="mt-1 font-mono text-[10px] text-on-surface-variant break-all">
-                          <ProofLink proofId={activity.txHash} explorerUrl={activity.explorerUrl} />
-                        </p>
-                      )}
-                    </div>
-                    <span className="shrink-0 font-mono text-xs font-bold text-secondary">{activityAmountLabel(activity)}</span>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-      )}
 
       <section className="flex flex-col gap-6 flex-1">
         <div className="flex items-center gap-2">

@@ -10,6 +10,7 @@ export interface RecipientWallet {
   name: string;
   address?: string;
   email?: string;
+  recipientTimeZone?: string;
   amount?: number;
   amountMinor?: number;
   fiberInvoice?: string;
@@ -134,4 +135,5 @@ export interface RecipientClaim {
   expiresAt?: string;
   reference?: string;
   conditionSummary?: string;
+  recipientTimeZone?: string;
 }

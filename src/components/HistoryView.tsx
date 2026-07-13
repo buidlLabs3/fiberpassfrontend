@@ -24,6 +24,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { Session } from '../types';
+import { SessionDetailModal } from './DashboardView';
 import { type WalletActivity } from '../lib/walletApi';
 import { formatCurrencyAmount } from '../lib/currency';
 
@@ -31,6 +32,7 @@ interface HistoryViewProps {
   historySessions: Session[];
   walletActivities?: WalletActivity[];
   isLoading?: boolean;
+  onResendRecipientInvites?: (id: string) => void;
 }
 
 function shortValue(value?: string): string {
@@ -62,12 +64,13 @@ function ProofLink({ proofId, explorerUrl }: { proofId?: string; explorerUrl?: s
   );
 }
 
-export default function HistoryView({ historySessions, walletActivities = [], isLoading = false }: HistoryViewProps) {
+export default function HistoryView({ historySessions, walletActivities = [], isLoading = false, onResendRecipientInvites = () => undefined }: HistoryViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSessionId, setSelectedSessionId] = useState<string>(
     historySessions[0]?.id || ''
   );
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
+  const [detailSessionId, setDetailSessionId] = useState<string>('');
   const visibleWalletActivities = walletActivities.filter((activity) => activity.label !== 'JoyID wallet chain activity');
   const sessionsById = new Map(historySessions.map((session) => [session.id, session]));
 
@@ -84,6 +87,7 @@ export default function HistoryView({ historySessions, walletActivities = [], is
 
   // Get active selected session
   const selectedSession = historySessions.find((s) => s.id === selectedSessionId) || historySessions[0];
+  const detailSession = historySessions.find((s) => s.id === detailSessionId) ?? null;
 
   const handleExportCSV = (session: Session) => {
     if (!session) return;
@@ -218,12 +222,13 @@ export default function HistoryView({ historySessions, walletActivities = [], is
                   key={activity.id}
                   role={isLinked ? 'button' : undefined}
                   tabIndex={isLinked ? 0 : undefined}
-                  onClick={() => { if (linkedSession) setSelectedSessionId(linkedSession.id); }}
+                  onClick={() => { if (linkedSession) { setSelectedSessionId(linkedSession.id); setDetailSessionId(linkedSession.id); } }}
                   onKeyDown={(event) => {
                     if (!linkedSession) return;
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
                       setSelectedSessionId(linkedSession.id);
+                      setDetailSessionId(linkedSession.id);
                     }
                   }}
                   className={'rounded-xl border border-outline-variant/70 bg-surface-container/60 p-3 ' + (isLinked ? 'cursor-pointer transition-colors hover:border-primary/60 hover:bg-surface-container-high/70' : '')}
@@ -286,7 +291,7 @@ export default function HistoryView({ historySessions, walletActivities = [], is
                     return (
                       <tr
                         key={session.id}
-                        onClick={() => setSelectedSessionId(session.id)}
+                        onClick={() => { setSelectedSessionId(session.id); setDetailSessionId(session.id); }}
                         className={`transition-colors cursor-pointer hover:bg-surface-container-high/60 ${
                           isSelected ? 'bg-primary/5 border-l-2 border-primary' : ''
                         }`}
@@ -482,6 +487,13 @@ export default function HistoryView({ historySessions, walletActivities = [], is
         )}
 
       </div>
+      {detailSession && (
+        <SessionDetailModal
+          session={detailSession}
+          onClose={() => setDetailSessionId('')}
+          onResendRecipientInvites={onResendRecipientInvites}
+        />
+      )}
     </div>
   );
 }

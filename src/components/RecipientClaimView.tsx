@@ -21,6 +21,14 @@ function formatDateTime(value?: string): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
+function browserTimeZone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return undefined;
+  }
+}
+
 function amountLabel(claim: RecipientClaim | null): string {
   if (!claim || claim.amount == null || !claim.currency) return 'Not set';
   return formatCurrencyAmount(claim.amount, claim.currency, 8);
@@ -53,7 +61,7 @@ export default function RecipientClaimView({ token }: RecipientClaimViewProps) {
     }
     setIsSubmitting(true);
     try {
-      setClaim(await sessionsApi.claimRecipientWallet(token, address.trim()));
+      setClaim(await sessionsApi.claimRecipientWallet(token, address.trim(), browserTimeZone()));
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, 'Could not save recipient wallet.'));
     } finally {

@@ -408,7 +408,6 @@ export default function App() {
                 walletCurrency={wallet.currency}
                 totalActivePassValue={totalActivePassValue}
                 walletChain={fundingChain}
-                walletActivities={walletActivities}
                 fundingLoading={fundingLoading}
                 onSyncWalletFunding={handleSyncWalletFunding}
                 isLoading={sessions.isLoading}
@@ -425,7 +424,7 @@ export default function App() {
 
             {/* Session History Tab */}
             {activeTab === 'history' && (
-              <HistoryView historySessions={historySessions} walletActivities={walletActivities} isLoading={sessions.isLoading} />
+              <HistoryView historySessions={historySessions} walletActivities={walletActivities} isLoading={sessions.isLoading} onResendRecipientInvites={handleResendRecipientInvites} />
             )}
 
             {/* Automation Tab */}

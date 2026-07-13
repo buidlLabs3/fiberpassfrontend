@@ -118,6 +118,7 @@ export function useSessionsOverview(enabled: boolean) {
     clearError: () => setError(''),
     refresh,
     createSession: (payload: CreateSessionPayload) => runMutation(() => sessionsApi.createSession(payload)),
+    syncDuePayouts: () => runMutation(() => sessionsApi.syncDuePayouts()),
     topUpSession: (id: string, amount = 1) => runMutation(() => sessionsApi.topUpSession(id, amount)),
     resendRecipientInvites: (id: string) => runMutation(() => sessionsApi.resendRecipientInvites(id)),
     togglePauseSession: (id: string) => runMutation(() => sessionsApi.togglePauseSession(id)),

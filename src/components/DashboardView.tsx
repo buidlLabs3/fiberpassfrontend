@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Bolt,
   Plus,
@@ -46,6 +46,38 @@ function formatDateTime(value?: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
+}
+
+function formatCountdownDuration(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (days > 0) return days + 'd ' + hours + 'h ' + minutes + 'm';
+  if (hours > 0) return hours + 'h ' + minutes + 'm ' + seconds + 's';
+  return minutes + 'm ' + seconds.toString().padStart(2, '0') + 's';
+}
+
+function sessionCountdown(session: Session, nowMs: number): { label: string; value: string; isDue: boolean } | null {
+  const targetValue = session.nextReleaseAt ?? session.expiryAt;
+  if (!targetValue) return null;
+
+  const target = new Date(targetValue);
+  if (Number.isNaN(target.getTime())) return null;
+
+  const isRelease = Boolean(session.nextReleaseAt);
+  const remainingMs = target.getTime() - nowMs;
+  if (remainingMs <= 0) {
+    return { label: isRelease ? 'Release due' : 'Expired', value: 'now', isDue: true };
+  }
+
+  return {
+    label: isRelease ? 'Auto-release in' : 'Expires in',
+    value: formatCountdownDuration(remainingMs),
+    isDue: false
+  };
 }
 
 function shortValue(value?: string): string {
@@ -99,10 +131,11 @@ function chainStatusLabel(status?: string): string {
   return 'Pending';
 }
 
-export function SessionDetailModal({ session, onClose, onResendRecipientInvites }: { session: Session; onClose: () => void; onResendRecipientInvites: (id: string) => void }) {
+export function SessionDetailModal({ session, now = Date.now(), onClose, onResendRecipientInvites }: { session: Session; now?: number; onClose: () => void; onResendRecipientInvites: (id: string) => void }) {
   const wallets = recipientWalletsForSession(session);
   const remainingBalance = session.remainingBalance ?? Math.max(0, session.limit - session.spent);
   const recentAttempts = session.chargeAttempts.slice(0, 8);
+  const detailCountdown = sessionCountdown(session, now);
   const recentLogs = session.logs.slice(0, 8);
   const hasResendableRecipientInvites = wallets.some((wallet) => Boolean(wallet.email && !wallet.address && wallet.status !== 'paid' && wallet.inviteStatus !== 'claimed'));
 
@@ -152,6 +185,7 @@ export function SessionDetailModal({ session, onClose, onResendRecipientInvites 
                 <DetailRow label="Reference" value={session.paymentReference} />
                 <DetailRow label="Condition" value={session.conditionSummary} />
                 <DetailRow label="Cadence" value={session.releaseCadence ?? 'none'} />
+                {detailCountdown && <DetailRow label="Countdown" value={detailCountdown.label + ' · ' + detailCountdown.value} mono />}
                 <DetailRow label="Next Release" value={formatDateTime(session.nextReleaseAt)} />
                 <DetailRow label="Expiry" value={formatDateTime(session.expiryAt ?? session.expiryTime)} />
                 <DetailRow label="Per-Payment Cap" value={session.maxChargeAmount == null ? 'Not set' : formatCurrencyAmount(session.maxChargeAmount, session.currency)} mono />
@@ -356,10 +390,16 @@ export default function DashboardView({
   onLoadFundsClick
 }: DashboardViewProps) {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const selectedSession = useMemo(
     () => activeSessions.find((session) => session.id === selectedSessionId) ?? null,
     [activeSessions, selectedSessionId]
   );
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const openSessionDetails = (id: string) => {
     setSelectedSessionId(id);
@@ -499,6 +539,7 @@ export default function DashboardView({
             {activeSessions.map((session) => {
               const spentPercentage = session.limit > 0 ? Math.min((session.spent / session.limit) * 100, 100) : 0;
               const remainingBalance = session.remainingBalance ?? Math.max(0, session.limit - session.spent);
+              const countdown = sessionCountdown(session, nowMs);
               const isPaused = session.status === 'paused';
               const pendingAction = pendingSessionAction?.id === session.id ? pendingSessionAction.action : null;
               const isActionPending = Boolean(pendingAction);
@@ -562,6 +603,16 @@ export default function DashboardView({
                       <span className="text-on-surface-variant font-semibold uppercase tracking-wider">Remaining</span>
                       <span className="font-mono text-secondary font-bold">{formatCurrencyAmount(remainingBalance, session.currency)}</span>
                     </div>
+
+                    {countdown && (
+                      <div className={(countdown.isDue ? 'border-secondary/40 bg-secondary/10 text-secondary ' : 'border-primary/30 bg-primary/10 text-primary ') + 'flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-[11px]'}>
+                        <span className="inline-flex min-w-0 items-center gap-1 font-semibold uppercase tracking-wider">
+                          <CalendarClock className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{countdown.label}</span>
+                        </span>
+                        <span className="shrink-0 font-mono font-bold">{countdown.value}</span>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-2 text-[10px] text-on-surface-variant">
                       <span className="truncate">{session.chargePolicy ?? sessionPurposeLabel(session)}</span>
@@ -636,7 +687,7 @@ export default function DashboardView({
       </section>
 
       {selectedSession && (
-        <SessionDetailModal session={selectedSession} onClose={() => setSelectedSessionId(null)} onResendRecipientInvites={onResendRecipientInvites} />
+        <SessionDetailModal session={selectedSession} now={nowMs} onClose={() => setSelectedSessionId(null)} onResendRecipientInvites={onResendRecipientInvites} />
       )}
     </div>
   );

@@ -88,6 +88,12 @@ export const sessionsApi = {
       body: JSON.stringify(payload)
     }),
 
+  syncDuePayouts: () =>
+    apiRequest<SessionsOverview>('/sessions/payouts/sync', {
+      method: 'POST',
+      body: JSON.stringify({})
+    }),
+
   topUpSession: (id: string, amount = 1) =>
     apiRequest<SessionsOverview>('/sessions/' + encodeURIComponent(id) + '/top-up', {
       method: 'POST',

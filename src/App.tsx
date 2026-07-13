@@ -309,15 +309,22 @@ export default function App() {
   const handleSyncWalletFunding = async () => {
     setFundingLoading(true);
     try {
-      const fundingOverview = await fiberPassApi.syncWalletFunding();
+      let fundingOverview = await fiberPassApi.syncWalletFunding();
       setFundingConfig(fundingOverview.config);
       setFundingRequests(fundingOverview.requests);
       setFundingChain(fundingOverview.chain);
       setWalletActivities(fundingOverview.activities);
-      await sessions.refresh();
+
+      await sessions.syncDuePayouts();
+
+      fundingOverview = await fiberPassApi.syncWalletFunding();
+      setFundingConfig(fundingOverview.config);
+      setFundingRequests(fundingOverview.requests);
+      setFundingChain(fundingOverview.chain);
+      setWalletActivities(fundingOverview.activities);
       setFundingError('');
     } catch (error) {
-      const message = getApiErrorMessage(error, 'Could not sync CKB vault deposits.');
+      const message = getApiErrorMessage(error, 'Could not sync CKB vault deposits or due payouts.');
       setFundingError(message);
       throw new Error(message);
     } finally {

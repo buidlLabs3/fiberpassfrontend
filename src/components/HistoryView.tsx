@@ -450,6 +450,13 @@ export default function HistoryView({ historySessions, walletActivities = [], is
                           <span className="font-semibold text-xs text-on-surface truncate">{attempt.type}</span>
                         </div>
                         <p className="font-mono text-[9px] text-on-surface-variant mt-1 truncate">{new Date(attempt.createdAt).toLocaleString()}</p>
+                        <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 font-mono text-[9px] text-on-surface-variant">
+                          {attempt.executionLayer && <span>{attempt.executionLayer}</span>}
+                          {attempt.reserveStatus && <span>reserve:{attempt.reserveStatus}</span>}
+                          {attempt.proofType && <span>{attempt.proofType}</span>}
+                          {attempt.serviceReference && <span>ref:{attempt.serviceReference}</span>}
+                          {attempt.paymentRequestHash && <span>request:{attempt.paymentRequestHash.slice(0, 10)}...</span>}
+                        </div>
                         {attempt.proofId && (
                           <p className="font-mono text-[9px] text-on-surface-variant mt-1 truncate">Proof: <ProofLink proofId={attempt.proofId} explorerUrl={attempt.explorerUrl} /></p>
                         )}

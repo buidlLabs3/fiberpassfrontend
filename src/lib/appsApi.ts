@@ -19,6 +19,12 @@ export interface AppChargeAttempt {
   provider?: string;
   network?: string;
   proofId?: string;
+  proofType?: string;
+  executionLayer?: string;
+  reserveStatus?: string;
+  idempotencyKey?: string;
+  serviceReference?: string;
+  paymentRequestHash?: string;
   createdAt: string;
 }
 

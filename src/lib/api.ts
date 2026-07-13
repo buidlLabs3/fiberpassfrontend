@@ -11,7 +11,7 @@ export type { ApiRequestOptions } from './apiClient';
 export type { AuthChallenge, AuthVerifyPayload, AuthVerifyResponse } from './authApi';
 export type { AppApiKey, AppApiKeyScope, AppChargeAttempt, AutomationInvoice, AutomationPaymentBatch, AutomationPaymentJob, AutomationRecipient, CreateAutomationInvoiceBatchPayload, CreateAutomationInvoicePayload, CreateAutomationRecipientPayload, WebhookDelivery, CreatedAppApiKey, DeveloperApp } from './appsApi';
 export type { CreateSessionPayload, CreateSessionPolicy, SessionsOverview, VerifiedApp } from './sessionsApi';
-export type { ApiMeta } from './settingsApi';
+export type { ApiMeta, FiberChannelStrategy, FiberNodeReadiness } from './settingsApi';
 export type { WalletActivity, WalletChainBalance, WalletChainState, WalletFundingConfig, WalletFundingOverview, WalletFundingRequest } from './walletApi';
 
 export const fiberPassApi = {

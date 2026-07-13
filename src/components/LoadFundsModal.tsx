@@ -130,7 +130,7 @@ export default function LoadFundsModal({
           <div className="flex items-center gap-2.5 min-w-0">
             <Wallet className="w-6 h-6 text-primary shrink-0" />
             <div className="min-w-0">
-              <h2 className="text-xl font-bold text-on-surface tracking-tight">Load Wallet Funds</h2>
+              <h2 className="text-xl font-bold text-on-surface tracking-tight">Load Vault Funds</h2>
               <p className="text-xs text-on-surface-variant truncate">Send testnet CKB to your vault, then confirm or sync the transaction.</p>
             </div>
           </div>

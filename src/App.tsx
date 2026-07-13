@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 import { WalletState } from './types';
-import { fiberPassApi, getApiErrorMessage, type ApiMeta, type CreateSessionPayload } from './lib/api';
+import { fiberPassApi, getApiErrorMessage, type ApiMeta, type CreateSessionPayload, type FiberChannelStrategy, type FiberNodeReadiness } from './lib/api';
 import { type WalletActivity, type WalletChainState, type WalletFundingConfig, type WalletFundingRequest } from './lib/walletApi';
 import { connectJoyIdWallet, disconnectJoyIdWallet, getStoredJoyIdAddress, signJoyIdMessage } from './lib/joyid';
 import { useAutomationOverview } from './hooks/useAutomationOverview';
@@ -28,6 +28,7 @@ import CreateSessionModal from './components/CreateSessionModal';
 import DeveloperAppsView from './components/DeveloperAppsView';
 import AutomationView from './components/AutomationView';
 import LoadFundsModal from './components/LoadFundsModal';
+import FiberStatusPanel from './components/FiberStatusPanel';
 
 export default function App() {
   // Navigation states
@@ -66,26 +67,34 @@ export default function App() {
 
   // Settings view details
   const [apiMeta, setApiMeta] = useState<ApiMeta | null>(null);
+  const [fiberReadiness, setFiberReadiness] = useState<FiberNodeReadiness | null>(null);
+  const [fiberChannelStrategy, setFiberChannelStrategy] = useState<FiberChannelStrategy | null>(null);
   const [metaError, setMetaError] = useState('');
+  const [fiberStatusLoading, setFiberStatusLoading] = useState(false);
   const [autoSettleTime, setAutoSettleTime] = useState('2 hours');
 
-  useEffect(() => {
-    let active = true;
-    fiberPassApi.getMeta()
-      .then((meta) => {
-        if (active) {
-          setApiMeta(meta);
-          setMetaError('');
-        }
-      })
-      .catch((error) => {
-        if (active) setMetaError(getApiErrorMessage(error, 'Could not load API runtime metadata.'));
-      });
-
-    return () => {
-      active = false;
-    };
+  const loadFiberRuntime = useCallback(async () => {
+    setFiberStatusLoading(true);
+    try {
+      const [meta, readiness, strategy] = await Promise.all([
+        fiberPassApi.getMeta(),
+        fiberPassApi.getFiberReadiness(),
+        fiberPassApi.getFiberChannelStrategy()
+      ]);
+      setApiMeta(meta);
+      setFiberReadiness(readiness);
+      setFiberChannelStrategy(strategy);
+      setMetaError('');
+    } catch (error) {
+      setMetaError(getApiErrorMessage(error, 'Could not load Fiber runtime status.'));
+    } finally {
+      setFiberStatusLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadFiberRuntime();
+  }, [loadFiberRuntime]);
 
   useEffect(() => {
     if (!sessions.overview) return;
@@ -546,6 +555,14 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+
+                  <FiberStatusPanel
+                    readiness={fiberReadiness}
+                    strategy={fiberChannelStrategy}
+                    isLoading={fiberStatusLoading}
+                    error={metaError}
+                    onRefresh={loadFiberRuntime}
+                  />
 
                   {/* Panel 3: Security checklist (Full Column) */}
                   <div className="bg-surface-container-low/50 border border-outline-variant rounded-2xl p-6 lg:col-span-2 space-y-4">

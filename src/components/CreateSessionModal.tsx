@@ -343,7 +343,7 @@ export default function CreateSessionModal({
     }
 
     if (limitNum > walletBalance) {
-      setErrorMessage('Insufficient wallet balance. Your maximum pass limit is ' + formatAmount(walletBalance, currency) + '.');
+      setErrorMessage('Insufficient vault balance. Your maximum pass limit is ' + formatAmount(walletBalance, currency) + '.');
       return false;
     }
 
@@ -585,11 +585,11 @@ export default function CreateSessionModal({
                     </div>
 
                     <details className="lg:col-span-2 rounded-lg border border-outline-variant bg-surface-container/50 px-4 py-3">
-                      <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Advanced controller</summary>
+                      <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Advanced access (optional)</summary>
                       <div className="mt-3 grid grid-cols-1 gap-2">
                         <input
                           type="text"
-                          placeholder="Secondary controller CKB address"
+                          placeholder="Secondary CKB address"
                           value={secondaryControllerAddress}
                           onChange={(event) => setSecondaryControllerAddress(event.target.value)}
                           className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-3 text-xs font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 placeholder:text-outline-variant"
@@ -834,7 +834,7 @@ export default function CreateSessionModal({
                   <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-4">
                       <Wallet className="w-4 h-4 text-primary mb-2" />
-                      <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">Available Fiber Balance</p>
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">Available Vault Balance</p>
                       <p className="font-mono text-lg font-bold text-on-surface mt-1">{formatAmount(walletBalance, currency)}</p>
                     </div>
                     <div className="rounded-xl border border-outline-variant bg-surface-container/60 p-4">
@@ -855,7 +855,7 @@ export default function CreateSessionModal({
                     <div>
                       <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">Review Before Authorization</p>
                       <h3 className="text-xl font-bold text-on-surface mt-1">{currentAppName}</h3>
-                      <p className="text-[11px] text-on-surface-variant mt-1">{secondaryController ? 'Secondary controller' : 'Connected wallet controller'}</p>
+                      <p className="text-[11px] text-on-surface-variant mt-1">{secondaryController ? 'Secondary access' : 'Connected wallet'}</p>
                     </div>
 
                     <div className="space-y-2">

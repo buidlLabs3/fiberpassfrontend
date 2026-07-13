@@ -281,6 +281,12 @@ export function SessionDetailModal({ session, onClose, onResendRecipientInvites 
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-on-surface-variant">
                     <span>{attempt.status}</span>
                     <span>{formatDateTime(attempt.createdAt)}</span>
+                    {attempt.executionLayer && <span>Layer: {attempt.executionLayer}</span>}
+                    {attempt.reserveStatus && <span>Reserve: {attempt.reserveStatus}</span>}
+                    {attempt.proofType && <span>Proof: {attempt.proofType}</span>}
+                    {attempt.serviceReference && <span>Ref: {shortValue(attempt.serviceReference)}</span>}
+                    {attempt.idempotencyKey && <span>Key: {shortValue(attempt.idempotencyKey)}</span>}
+                    {attempt.paymentRequestHash && <span>Request: {shortValue(attempt.paymentRequestHash)}</span>}
                     {attempt.proofId && <span><ProofLink proofId={attempt.proofId} explorerUrl={attempt.explorerUrl} /></span>}
                     {attempt.failureMessage && <span className="text-error">{attempt.failureCode}: {attempt.failureMessage}</span>}
                   </div>

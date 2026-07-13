@@ -440,6 +440,12 @@ export default function DeveloperAppsView({
                             <p className="font-bold text-sm text-on-surface truncate">{attempt.type}</p>
                           </div>
                           <p className="font-mono text-[10px] text-on-surface-variant mt-1 truncate">{attempt.sessionId} / {formatDate(attempt.createdAt)}</p>
+                          <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 font-mono text-[9px] text-on-surface-variant">
+                            {attempt.executionLayer && <span>{attempt.executionLayer}</span>}
+                            {attempt.reserveStatus && <span>reserve:{attempt.reserveStatus}</span>}
+                            {attempt.serviceReference && <span>ref:{attempt.serviceReference}</span>}
+                            {attempt.idempotencyKey && <span>key:{attempt.idempotencyKey.slice(0, 10)}...</span>}
+                          </div>
                           {attempt.proofId && <p className="font-mono text-[10px] text-on-surface-variant mt-1 truncate">Proof: {attempt.proofId}</p>}
                           {attempt.failureMessage && <p className="text-[11px] text-error mt-1">{attempt.failureCode}: {attempt.failureMessage}</p>}
                         </div>

@@ -9,6 +9,7 @@ import { type RecipientClaim } from '../types';
 import { formatCurrencyAmount } from '../lib/currency';
 import { getApiErrorMessage } from '../lib/apiClient';
 import { sessionsApi } from '../lib/sessionsApi';
+import { FIBER_CKB_ADDRESS_ERROR, isFiberCkbAddress } from '../lib/fiberAddress';
 
 interface RecipientClaimViewProps {
   token: string;
@@ -35,7 +36,7 @@ function amountLabel(claim: RecipientClaim | null): string {
 
 export default function RecipientClaimView({ token }: RecipientClaimViewProps) {
   const [claim, setClaim] = useState<RecipientClaim | null>(null);
-  const [fiberInvoice, setFiberInvoice] = useState('');
+  const [address, setAddress] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -54,14 +55,14 @@ export default function RecipientClaimView({ token }: RecipientClaimViewProps) {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
-    const cleanInvoice = fiberInvoice.trim();
-    if (cleanInvoice.length < 16 || /\s/.test(cleanInvoice)) {
-      setError('Paste the full Fiber invoice/payment request.');
+    const cleanAddress = address.trim();
+    if (!isFiberCkbAddress(cleanAddress)) {
+      setError(FIBER_CKB_ADDRESS_ERROR);
       return;
     }
     setIsSubmitting(true);
     try {
-      setClaim(await sessionsApi.claimRecipientWallet(token, { fiberInvoice: cleanInvoice }, browserTimeZone()));
+      setClaim(await sessionsApi.claimRecipientWallet(token, { address: cleanAddress }, browserTimeZone()));
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, 'Could not save recipient wallet.'));
     } finally {
@@ -72,7 +73,7 @@ export default function RecipientClaimView({ token }: RecipientClaimViewProps) {
   const isClaimable = claim?.status === 'pending';
   const isDone = claim?.status === 'claimed';
   const isUnavailable = claim?.status === 'expired' || claim?.status === 'not_found';
-  const message = isDone ? 'Fiber payment request saved. Payment will release automatically at the scheduled time.' : isUnavailable ? (claim?.status === 'expired' ? 'This payment link has expired.' : 'This payment link was not found.') : 'Add a Fiber invoice/payment request so FiberPass can release this payout through Fiber Network.';
+  const message = isDone ? 'CKB wallet saved. Payment will release automatically through FiberPass at the scheduled time.' : isUnavailable ? (claim?.status === 'expired' ? 'This payment link has expired.' : 'This payment link was not found.') : 'Add your CKB wallet address. FiberPass routes the payout through Fiber Network, then settles to this wallet.';
 
   return (
     <div className="min-h-screen bg-background text-on-surface flex items-center justify-center px-4 py-10">
@@ -100,10 +101,10 @@ export default function RecipientClaimView({ token }: RecipientClaimViewProps) {
               {isClaimable && (
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-on-surface-variant" htmlFor="recipient-fiber-invoice">Fiber invoice/request</label>
-                    <textarea id="recipient-fiber-invoice" value={fiberInvoice} onChange={(event) => setFiberInvoice(event.target.value)} rows={4} placeholder="Paste full Fiber payment request" className="w-full resize-y rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 font-mono text-sm text-on-surface placeholder:text-outline-variant focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-on-surface-variant" htmlFor="recipient-ckb-address">CKB wallet address</label>
+                    <input id="recipient-ckb-address" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="ckt1... or ckb1..." className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 font-mono text-sm text-on-surface placeholder:text-outline-variant focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50" />
                   </div>
-                  <button type="submit" disabled={isSubmitting} className="w-full rounded-xl bg-primary px-4 py-3 text-xs font-bold uppercase tracking-wider text-on-primary hover:bg-primary-fixed disabled:opacity-70 flex items-center justify-center gap-2">{isSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />} Save Fiber Request</button>
+                  <button type="submit" disabled={isSubmitting} className="w-full rounded-xl bg-primary px-4 py-3 text-xs font-bold uppercase tracking-wider text-on-primary hover:bg-primary-fixed disabled:opacity-70 flex items-center justify-center gap-2">{isSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />} Save CKB Wallet</button>
                 </form>
               )}
               <button type="button" onClick={() => { window.location.href = '/'; }} className="w-full rounded-xl border border-outline-variant bg-surface-container px-4 py-3 text-xs font-bold uppercase tracking-wider text-primary hover:border-primary/50">Try FiberPass</button>

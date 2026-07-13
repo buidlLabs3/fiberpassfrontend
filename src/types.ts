@@ -37,6 +37,14 @@ export interface RecipientWallet {
   fiberChannelOpenProofId?: string;
   fiberChannelOpenAmountMinor?: number;
   fiberChannelOpenRequestedAt?: string;
+  fiberExitInvoice?: string;
+  fiberExitInvoiceHash?: string;
+  fiberExitPaymentProofId?: string;
+  fiberExitPaymentAttemptId?: string;
+  fiberExitSettlementTxHash?: string;
+  fiberExitSettlementStatus?: string;
+  fiberExitSettlementExplorerUrl?: string;
+  fiberExitSettledAt?: string;
 }
 
 export interface TransactionLog {

@@ -265,7 +265,9 @@ export function SessionDetailModal({ session, now = Date.now(), onClose, onResen
                         <DetailRow label="Bridge Tx" value={shortValue(wallet.fiberLiquidityBridgeTxHash)} mono />
                         <DetailRow label="Bridge" value={wallet.fiberLiquidityBridgeStatus ?? 'Not started'} />
                         <DetailRow label="Channel" value={shortValue(wallet.fiberChannelOpenProofId)} mono />
-                        <DetailRow label="Proof" value={<ProofLink proofId={wallet.payoutProofId} explorerUrl={wallet.payoutExplorerUrl} />} mono />
+                        <DetailRow label="Fiber Proof" value={shortValue(wallet.fiberExitPaymentProofId)} mono />
+                        <DetailRow label="Exit Status" value={wallet.fiberExitSettlementStatus ?? 'Not started'} />
+                        <DetailRow label="CKB Tx" value={<ProofLink proofId={wallet.fiberExitSettlementTxHash ?? wallet.payoutProofId} explorerUrl={wallet.fiberExitSettlementExplorerUrl ?? wallet.payoutExplorerUrl} />} mono />
                         <DetailRow label="Receipt Email" value={wallet.payoutNotificationStatus ?? (wallet.email ? 'pending' : 'not required')} />
                       </div>
                     </div>

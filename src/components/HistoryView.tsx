@@ -4,15 +4,15 @@
  */
 
 import React, { useState } from 'react';
-import { 
-  Search, 
-  Filter, 
-  Cloud, 
-  Code, 
-  Database, 
-  Cpu, 
-  Video, 
-  Activity, 
+import {
+  Search,
+  Filter,
+  Cloud,
+  Code,
+  Database,
+  Cpu,
+  Video,
+  Activity,
   MessageSquare,
   Download,
   CheckCircle2,
@@ -24,10 +24,12 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { Session } from '../types';
+import { type WalletActivity } from '../lib/walletApi';
 import { formatCurrencyAmount } from '../lib/currency';
 
 interface HistoryViewProps {
   historySessions: Session[];
+  walletActivities?: WalletActivity[];
   isLoading?: boolean;
 }
 
@@ -37,32 +39,46 @@ function shortValue(value?: string): string {
   return value.slice(0, 10) + '...' + value.slice(-8);
 }
 
+
+function activityTimestampLabel(activity: WalletActivity): string {
+  if (activity.timestamp) return new Date(activity.timestamp).toLocaleString();
+  if (activity.blockNumber) return 'Block ' + Number(BigInt(activity.blockNumber)).toLocaleString('en-US');
+  return 'Chain activity';
+}
+
+function activityAmountLabel(activity: WalletActivity): string {
+  if (activity.amount == null) return activity.txHash ? 'Tx' : activity.source;
+  return formatCurrencyAmount(activity.amount, activity.currency, 8);
+}
+
 function ProofLink({ proofId, explorerUrl }: { proofId?: string; explorerUrl?: string }) {
   if (!proofId) return <>Not set</>;
   if (!explorerUrl) return <>{shortValue(proofId)}</>;
   return (
-    <a href={explorerUrl} target="_blank" rel="noreferrer" className="inline-flex max-w-full items-center gap-1 text-primary hover:text-secondary">
+    <a href={explorerUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="inline-flex max-w-full items-center gap-1 text-primary hover:text-secondary">
       <span>{shortValue(proofId)}</span>
       <ExternalLink className="h-3 w-3 shrink-0" />
     </a>
   );
 }
 
-export default function HistoryView({ historySessions, isLoading = false }: HistoryViewProps) {
+export default function HistoryView({ historySessions, walletActivities = [], isLoading = false }: HistoryViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSessionId, setSelectedSessionId] = useState<string>(
     historySessions[0]?.id || ''
   );
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
+  const visibleWalletActivities = walletActivities.filter((activity) => activity.label !== 'JoyID wallet chain activity');
+  const sessionsById = new Map(historySessions.map((session) => [session.id, session]));
 
   // Filter history records based on search query and status dropdown
   const filteredSessions = historySessions.filter((session) => {
-    const matchesSearch = session.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    const matchesSearch = session.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           session.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           session.serviceAddress.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesStatus = selectedStatusFilter === 'all' || session.status === selectedStatusFilter;
-    
+
     return matchesSearch && matchesStatus;
   });
 
@@ -71,13 +87,13 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
 
   const handleExportCSV = (session: Session) => {
     if (!session) return;
-    
+
     // Construct CSV string from the session ledger shown in the API response.
     const csvHeaders = "Log ID,Action,Timestamp,Charged Amount (" + session.currency + ")\n";
     const csvRows = session.logs.map(log =>
       `"${log.id}","${log.type}","${log.timestamp}","${formatCurrencyAmount(log.amount, session.currency, 8)}"`
     ).join("\n");
-    
+
     const csvContent = "data:text/csv;charset=utf-8," + csvHeaders + csvRows;
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -153,8 +169,8 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
           {/* Search Box */}
           <div className="relative flex-1 sm:flex-initial">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="Search sessions..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -179,9 +195,61 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
         </div>
       </header>
 
+
+      <section className="rounded-2xl border border-outline-variant/60 bg-surface-container-low/50 p-5 shadow-md">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-on-surface">Wallet Activity</h2>
+            <p className="text-sm text-on-surface-variant mt-1">Funding, vault transactions, payouts, and payment attempts for this connected wallet.</p>
+          </div>
+          <span className="font-mono text-[10px] font-bold text-on-surface-variant px-2.5 py-1 bg-surface-container-highest border border-outline-variant rounded-full tracking-wider uppercase">
+            {visibleWalletActivities.length} Records
+          </span>
+        </div>
+        {visibleWalletActivities.length === 0 ? (
+          <p className="text-sm text-on-surface-variant">No wallet activity found yet.</p>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {visibleWalletActivities.slice(0, 12).map((activity) => {
+              const linkedSession = activity.referenceId ? sessionsById.get(activity.referenceId) : undefined;
+              const isLinked = Boolean(linkedSession);
+              return (
+                <article
+                  key={activity.id}
+                  role={isLinked ? 'button' : undefined}
+                  tabIndex={isLinked ? 0 : undefined}
+                  onClick={() => { if (linkedSession) setSelectedSessionId(linkedSession.id); }}
+                  onKeyDown={(event) => {
+                    if (!linkedSession) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedSessionId(linkedSession.id);
+                    }
+                  }}
+                  className={'rounded-xl border border-outline-variant/70 bg-surface-container/60 p-3 ' + (isLinked ? 'cursor-pointer transition-colors hover:border-primary/60 hover:bg-surface-container-high/70' : '')}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-on-surface">{activity.label}</p>
+                      <p className="mt-1 text-[10px] text-on-surface-variant">{activity.source} · {activity.status ?? activity.type} · {activityTimestampLabel(activity)}</p>
+                      {activity.txHash && (
+                        <p className="mt-1 font-mono text-[10px] text-on-surface-variant break-all">
+                          <ProofLink proofId={activity.txHash} explorerUrl={activity.explorerUrl} />
+                        </p>
+                      )}
+                    </div>
+                    <span className="shrink-0 font-mono text-xs font-bold text-secondary">{activityAmountLabel(activity)}</span>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
       {/* Main Grid Layout */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start flex-1">
-        
+
         {/* Left Side: Sessions Data Table (Spans 2 columns) */}
         <div className="xl:col-span-2 bg-surface-container-low/50 backdrop-blur-md rounded-2xl border border-outline-variant/60 flex flex-col h-full min-h-[500px] overflow-hidden shadow-md">
           <div className="p-5 border-b border-outline-variant/50 flex justify-between items-center bg-surface-container-low/20">
@@ -216,7 +284,7 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
                   {filteredSessions.map((session) => {
                     const isSelected = selectedSession?.id === session.id;
                     return (
-                      <tr 
+                      <tr
                         key={session.id}
                         onClick={() => setSelectedSessionId(session.id)}
                         className={`transition-colors cursor-pointer hover:bg-surface-container-high/60 ${
@@ -300,7 +368,7 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
                 <span className="text-on-surface-variant font-medium uppercase tracking-wider text-[10px]">Total Authorized</span>
                 <span className="font-mono font-semibold text-on-surface">{formatCurrencyAmount(selectedSession.limit, selectedSession.currency)}</span>
               </div>
-              
+
               <div className="flex justify-between items-end text-xs">
                 <span className="text-on-surface-variant font-medium uppercase tracking-wider text-[10px]">Actual Settle Spent</span>
                 <span className="font-mono font-bold text-secondary text-base">
@@ -317,8 +385,8 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
                   </span>
                 </div>
                 <div className="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-primary to-secondary rounded-full" 
+                  <div
+                    className="h-full bg-gradient-to-r from-primary to-secondary rounded-full"
                     style={{ width: `${selectedSession.limit > 0 ? Math.min((selectedSession.spent / selectedSession.limit) * 100, 100) : 0}%` }}
                   />
                 </div>
@@ -337,8 +405,8 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
                   <p className="text-xs text-on-surface-variant text-center py-6">No micro-charges recorded.</p>
                 ) : (
                   selectedSession.logs.map((log) => (
-                    <div 
-                      key={log.id} 
+                    <div
+                      key={log.id}
                       className="flex justify-between items-center py-2 border-b border-outline-variant/20 hover:bg-surface-container-high/30 px-1.5 rounded-lg transition-colors group"
                     >
                       <div className="flex flex-col min-w-0">
@@ -395,7 +463,7 @@ export default function HistoryView({ historySessions, isLoading = false }: Hist
 
             {/* Bottom Actions */}
             <div className="p-6 border-t border-outline-variant/50 bg-surface-container-low/40 backdrop-blur-sm relative z-10 flex gap-3">
-              <button 
+              <button
                 onClick={() => handleExportCSV(selectedSession)}
                 className="flex-1 bg-surface border border-outline hover:border-primary text-on-surface hover:text-primary transition-all duration-200 font-semibold text-xs py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 cursor-pointer shadow-sm"
               >

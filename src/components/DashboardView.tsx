@@ -26,6 +26,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { Session } from '../types';
+import { type WalletActivity, type WalletChainState } from '../lib/walletApi';
 import { formatCurrencyAmount } from '../lib/currency';
 
 function sessionPurposeLabel(session: Session): string {
@@ -84,11 +85,29 @@ function ProofLink({ proofId, explorerUrl }: { proofId?: string; explorerUrl?: s
   if (!proofId) return <>Not set</>;
   if (!explorerUrl) return <>{shortValue(proofId)}</>;
   return (
-    <a href={explorerUrl} target="_blank" rel="noreferrer" className="inline-flex max-w-full items-center gap-1 text-primary hover:text-secondary break-all">
+    <a href={explorerUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="inline-flex max-w-full items-center gap-1 text-primary hover:text-secondary break-all">
       <span>{shortValue(proofId)}</span>
       <ExternalLink className="h-3 w-3 shrink-0" />
     </a>
   );
+}
+
+function activityTimestampLabel(activity: WalletActivity): string {
+  if (activity.timestamp) return formatDateTime(activity.timestamp);
+  if (activity.blockNumber) return 'Block ' + Number(BigInt(activity.blockNumber)).toLocaleString('en-US');
+  return 'Chain activity';
+}
+
+function activityAmountLabel(activity: WalletActivity): string {
+  if (activity.amount == null) return activity.txHash ? 'Tx' : activity.source;
+  return formatCurrencyAmount(activity.amount, activity.currency, 8);
+}
+
+function chainStatusLabel(status?: string): string {
+  if (status === 'ok') return 'Live';
+  if (status === 'not_configured') return 'Not configured';
+  if (status === 'unavailable') return 'Unavailable';
+  return 'Pending';
 }
 
 function SessionDetailModal({ session, onClose, onResendRecipientInvites }: { session: Session; onClose: () => void; onResendRecipientInvites: (id: string) => void }) {
@@ -309,6 +328,10 @@ interface DashboardViewProps {
   walletBalance: number;
   walletCurrency: string;
   totalActivePassValue: number;
+  walletChain?: WalletChainState | null;
+  walletActivities?: WalletActivity[];
+  fundingLoading?: boolean;
+  onSyncWalletFunding: () => void;
   isLoading?: boolean;
   pendingSessionAction?: { id: string; action: 'top-up' | 'resend-invites' | 'pause' | 'revoke' | 'close' } | null;
   onTopUpSession: (id: string) => void;
@@ -325,6 +348,10 @@ export default function DashboardView({
   walletBalance,
   walletCurrency,
   totalActivePassValue,
+  walletChain = null,
+  walletActivities = [],
+  fundingLoading = false,
+  onSyncWalletFunding,
   isLoading = false,
   pendingSessionAction = null,
   onTopUpSession,
@@ -340,6 +367,10 @@ export default function DashboardView({
     () => activeSessions.find((session) => session.id === selectedSessionId) ?? null,
     [activeSessions, selectedSessionId]
   );
+  const sessionsById = useMemo(
+    () => new Map(activeSessions.map((session) => [session.id, session])),
+    [activeSessions]
+  );
 
   const openSessionDetails = (id: string) => {
     setSelectedSessionId(id);
@@ -351,6 +382,11 @@ export default function DashboardView({
       openSessionDetails(id);
     }
   };
+
+  const recentWalletActivities = walletActivities
+    .filter((activity) => activity.label !== 'JoyID wallet chain activity')
+    .slice(0, 6);
+  const vaultBalance = walletChain?.vault;
 
   const renderSessionIcon = (type: string) => {
     switch (type) {
@@ -379,27 +415,48 @@ export default function DashboardView({
         <div className="flex flex-col gap-4">
           <h1 className="text-3xl md:text-4xl font-bold text-on-surface tracking-tight">Dashboard</h1>
 
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex flex-col gap-1 bg-surface-container-low px-5 py-3 border border-outline-variant rounded-xl shadow-md min-w-[160px]">
-              <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Wallet Balance</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="flex flex-col gap-1 bg-surface-container-low px-5 py-3 border border-outline-variant rounded-xl shadow-md min-w-[180px]">
+              <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">FiberPass Available</span>
               <span className="font-mono text-xl font-semibold text-primary">
                 {formatCurrencyAmount(walletBalance, walletCurrency)}
               </span>
-              <button
-                type="button"
-                onClick={onLoadFundsClick}
-                className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-primary hover:text-secondary transition-colors"
-              >
-                <Wallet className="w-3.5 h-3.5" />
-                Load Funds
-              </button>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onLoadFundsClick}
+                  className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-primary hover:text-secondary transition-colors"
+                >
+                  <Wallet className="w-3.5 h-3.5" />
+                  Load Funds
+                </button>
+                <button
+                  type="button"
+                  onClick={onSyncWalletFunding}
+                  disabled={fundingLoading}
+                  className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-secondary hover:text-primary transition-colors disabled:opacity-60"
+                >
+                  <RefreshCw className={(fundingLoading ? 'animate-spin ' : '') + 'w-3.5 h-3.5'} />
+                  Sync
+                </button>
+              </div>
             </div>
 
-            <div className="flex flex-col gap-1 bg-surface-container-low px-5 py-3 border border-outline-variant rounded-xl shadow-md min-w-[160px]">
+
+            <div className="flex flex-col gap-1 bg-surface-container-low px-5 py-3 border border-outline-variant rounded-xl shadow-md min-w-[180px]">
+              <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Vault Balance</span>
+              <span className="font-mono text-xl font-semibold text-secondary">
+                {formatCurrencyAmount(vaultBalance?.amount ?? 0, vaultBalance?.currency ?? walletCurrency)}
+              </span>
+              <span className="text-[10px] text-on-surface-variant">{chainStatusLabel(vaultBalance?.status)} · logged-in vault · {vaultBalance?.liveCellCount ?? 0} cells</span>
+            </div>
+
+            <div className="flex flex-col gap-1 bg-surface-container-low px-5 py-3 border border-outline-variant rounded-xl shadow-md min-w-[180px]">
               <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Active Pass Limits</span>
               <span className="font-mono text-xl font-semibold text-secondary">
                 {formatCurrencyAmount(totalActivePassValue, walletCurrency)}
               </span>
+              <span className="text-[10px] text-on-surface-variant">Reserved from FiberPass available balance</span>
             </div>
           </div>
         </div>
@@ -413,6 +470,53 @@ export default function DashboardView({
           Create New Pass
         </button>
       </header>
+
+      {recentWalletActivities.length > 0 && (
+        <section className="rounded-2xl border border-outline-variant bg-surface-container-low/60 p-5 shadow-md">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-on-surface">Wallet Activity</h2>
+              <p className="text-xs text-on-surface-variant">Vault funding, payouts, and payment attempts for this connected wallet.</p>
+            </div>
+            {walletChain?.lastSyncedAt && <span className="font-mono text-[10px] text-on-surface-variant">Synced {formatDateTime(walletChain.lastSyncedAt)}</span>}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {recentWalletActivities.map((activity) => {
+              const linkedSession = activity.referenceId ? sessionsById.get(activity.referenceId) : undefined;
+              const isLinked = Boolean(linkedSession);
+              return (
+                <article
+                  key={activity.id}
+                  role={isLinked ? 'button' : undefined}
+                  tabIndex={isLinked ? 0 : undefined}
+                  onClick={() => { if (linkedSession) openSessionDetails(linkedSession.id); }}
+                  onKeyDown={(event) => {
+                    if (!linkedSession) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openSessionDetails(linkedSession.id);
+                    }
+                  }}
+                  className={'rounded-xl border border-outline-variant/70 bg-surface-container/60 p-3 ' + (isLinked ? 'cursor-pointer transition-colors hover:border-primary/60 hover:bg-surface-container-high/70' : '')}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-on-surface">{activity.label}</p>
+                      <p className="mt-1 text-[10px] text-on-surface-variant">{activity.source} · {activity.status ?? activity.type} · {activityTimestampLabel(activity)}</p>
+                      {activity.txHash && (
+                        <p className="mt-1 font-mono text-[10px] text-on-surface-variant break-all">
+                          <ProofLink proofId={activity.txHash} explorerUrl={activity.explorerUrl} />
+                        </p>
+                      )}
+                    </div>
+                    <span className="shrink-0 font-mono text-xs font-bold text-secondary">{activityAmountLabel(activity)}</span>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <section className="flex flex-col gap-6 flex-1">
         <div className="flex items-center gap-2">

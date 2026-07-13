@@ -12,7 +12,7 @@ export type { AuthChallenge, AuthVerifyPayload, AuthVerifyResponse } from './aut
 export type { AppApiKey, AppApiKeyScope, AppChargeAttempt, AutomationInvoice, AutomationPaymentBatch, AutomationPaymentJob, AutomationRecipient, CreateAutomationInvoiceBatchPayload, CreateAutomationInvoicePayload, CreateAutomationRecipientPayload, WebhookDelivery, CreatedAppApiKey, DeveloperApp } from './appsApi';
 export type { CreateSessionPayload, CreateSessionPolicy, SessionsOverview, VerifiedApp } from './sessionsApi';
 export type { ApiMeta } from './settingsApi';
-export type { WalletFundingConfig, WalletFundingOverview, WalletFundingRequest } from './walletApi';
+export type { WalletActivity, WalletChainBalance, WalletChainState, WalletFundingConfig, WalletFundingOverview, WalletFundingRequest } from './walletApi';
 
 export const fiberPassApi = {
   getAuthToken,

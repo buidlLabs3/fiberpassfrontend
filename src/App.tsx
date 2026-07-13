@@ -13,7 +13,7 @@ import {
 
 import { WalletState } from './types';
 import { fiberPassApi, getApiErrorMessage, type ApiMeta, type CreateSessionPayload } from './lib/api';
-import { type WalletFundingConfig, type WalletFundingRequest } from './lib/walletApi';
+import { type WalletActivity, type WalletChainState, type WalletFundingConfig, type WalletFundingRequest } from './lib/walletApi';
 import { connectJoyIdWallet, disconnectJoyIdWallet, getStoredJoyIdAddress, signJoyIdMessage } from './lib/joyid';
 import { useAutomationOverview } from './hooks/useAutomationOverview';
 import { useDeveloperApps } from './hooks/useDeveloperApps';
@@ -53,6 +53,8 @@ export default function App() {
   const [pendingSessionAction, setPendingSessionAction] = useState<{ id: string; action: 'top-up' | 'resend-invites' | 'pause' | 'revoke' | 'close' } | null>(null);
   const [fundingConfig, setFundingConfig] = useState<WalletFundingConfig | null>(null);
   const [fundingRequests, setFundingRequests] = useState<WalletFundingRequest[]>([]);
+  const [fundingChain, setFundingChain] = useState<WalletChainState | null>(null);
+  const [walletActivities, setWalletActivities] = useState<WalletActivity[]>([]);
   const [fundingLoading, setFundingLoading] = useState(false);
   const [fundingError, setFundingError] = useState('');
 
@@ -105,15 +107,19 @@ export default function App() {
     if (!wallet.connected) {
       setFundingConfig(null);
       setFundingRequests([]);
+      setFundingChain(null);
+      setWalletActivities([]);
       setFundingError('');
       return null;
     }
 
     setFundingLoading(true);
     try {
-      const fundingOverview = await fiberPassApi.getWalletFunding();
+      const fundingOverview = await fiberPassApi.syncWalletFunding();
       setFundingConfig(fundingOverview.config);
       setFundingRequests(fundingOverview.requests);
+      setFundingChain(fundingOverview.chain);
+      setWalletActivities(fundingOverview.activities);
       setFundingError('');
       return fundingOverview;
     } catch (error) {
@@ -131,6 +137,8 @@ export default function App() {
     } else {
       setFundingConfig(null);
       setFundingRequests([]);
+      setFundingChain(null);
+      setWalletActivities([]);
       setFundingError('');
     }
   }, [currentView, loadWalletFunding, wallet.connected]);
@@ -295,6 +303,8 @@ export default function App() {
       const fundingOverview = await fiberPassApi.syncWalletFunding();
       setFundingConfig(fundingOverview.config);
       setFundingRequests(fundingOverview.requests);
+      setFundingChain(fundingOverview.chain);
+      setWalletActivities(fundingOverview.activities);
       await sessions.refresh();
       setFundingError('');
     } catch (error) {
@@ -397,6 +407,10 @@ export default function App() {
                 walletBalance={wallet.balance}
                 walletCurrency={wallet.currency}
                 totalActivePassValue={totalActivePassValue}
+                walletChain={fundingChain}
+                walletActivities={walletActivities}
+                fundingLoading={fundingLoading}
+                onSyncWalletFunding={handleSyncWalletFunding}
                 isLoading={sessions.isLoading}
                 pendingSessionAction={pendingSessionAction}
                 onTopUpSession={handleTopUpSession}
@@ -411,7 +425,7 @@ export default function App() {
 
             {/* Session History Tab */}
             {activeTab === 'history' && (
-              <HistoryView historySessions={historySessions} isLoading={sessions.isLoading} />
+              <HistoryView historySessions={historySessions} walletActivities={walletActivities} isLoading={sessions.isLoading} />
             )}
 
             {/* Automation Tab */}

@@ -53,9 +53,49 @@ export interface WalletFundingRequest {
   confirmedAt?: string;
 }
 
+
+export interface WalletChainBalance {
+  amount: number;
+  amountMinor: number;
+  currency: string;
+  liveCellCount: number;
+  status: 'ok' | 'unavailable' | 'not_configured';
+  error?: string;
+}
+
+export interface WalletChainState {
+  network: string;
+  currency: string;
+  wallet: WalletChainBalance & { address: string };
+  vault?: WalletChainBalance & { address: string; scriptHash?: string };
+  activities: WalletActivity[];
+  lastSyncedAt: string;
+}
+
+export interface WalletActivity {
+  id: string;
+  source: 'funding' | 'chain' | 'payment' | 'session';
+  type: string;
+  label: string;
+  status?: string;
+  amount?: number;
+  amountMinor?: number;
+  currency: string;
+  txHash?: string;
+  explorerUrl?: string;
+  timestamp?: string;
+  blockNumber?: string;
+  direction?: 'input' | 'output' | 'unknown';
+  referenceId?: string;
+  details?: string;
+}
+
 export interface WalletFundingOverview {
   config: WalletFundingConfig;
   requests: WalletFundingRequest[];
+  chain: WalletChainState;
+  activities: WalletActivity[];
+  recoveredDeposits?: number;
 }
 
 export const walletApi = {

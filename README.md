@@ -4,6 +4,10 @@ FiberPass is a wallet dapp for prepaid, revocable Fiber Network payment sessions
 
 Instead of asking users to approve every tiny payment, FiberPass lets a user approve one spending pass for an app. The app can then charge small amounts within the user-defined limit until the pass is paused, revoked, expired, depleted, topped up, closed, or settled.
 
+## System Design
+
+The canonical architecture document lives in the backend repo: [FiberPass System Design](https://github.com/buidlLabs3/fiberpassbackend/blob/main/docs/system-design.md).
+
 ## What This App Does
 
 - Connects a wallet with JoyID authentication.

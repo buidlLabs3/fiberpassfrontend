@@ -54,7 +54,7 @@ const FALLBACK_POLICY: CreateSessionPolicy = {
     currency: 'CKB'
   },
   expiry: {
-    minMinutes: 5,
+    minMinutes: 1,
     maxDays: 30
   },
   fees: {

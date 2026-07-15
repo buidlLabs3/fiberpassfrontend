@@ -15,6 +15,7 @@ import {
   Settings,
   Wallet
 } from 'lucide-react';
+import FiberPassLogo from './FiberPassLogo';
 
 type AppTab = 'active' | 'history' | 'automation' | 'developer' | 'settings';
 
@@ -67,13 +68,7 @@ export default function AppNavigation({
             className="flex min-w-0 items-center gap-3 rounded-lg text-left text-on-surface transition-colors hover:text-primary"
             aria-label="Open FiberPass home"
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary text-on-primary shadow-[0_0_20px_rgba(176,198,255,0.16)]">
-              <Bolt className="h-5 w-5 fill-current" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-base font-black tracking-tight sm:text-lg">FiberPass</span>
-              <span className="block truncate text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">CKB prepaid payment sessions</span>
-            </span>
+            <FiberPassLogo showTagline />
           </button>
 
           <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">

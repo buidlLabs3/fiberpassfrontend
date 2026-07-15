@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Bolt, 
   Hourglass, 
   Coins, 
   Zap, 
@@ -18,6 +17,7 @@ import {
   ArrowUpRight
 } from 'lucide-react';
 import { DEVELOPER_CODE_SNIPPET } from '../data/initialData';
+import FiberPassLogo from './FiberPassLogo';
 
 interface LandingPageProps {
   onLaunchDapp: () => void;
@@ -60,15 +60,14 @@ export default function LandingPage({
       {/* Top Navbar */}
       <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-outline-variant">
         <div className="flex justify-between items-center px-6 py-4 max-w-7xl mx-auto">
-          {/* Logo */}
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20">
-              <Bolt className="w-5 h-5 text-on-primary font-bold fill-current" />
-            </div>
-            <span className="text-2xl font-bold tracking-tight text-glow">
-              Fiber<span className="text-primary">Pass</span>
-            </span>
-          </div>
+          <button
+            type="button"
+            className="cursor-pointer rounded-lg text-left"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            aria-label="Open FiberPass home"
+          >
+            <FiberPassLogo />
+          </button>
 
           {/* Navigation Links */}
           <div className="hidden md:flex gap-8 items-center">

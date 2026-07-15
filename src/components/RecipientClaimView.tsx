@@ -4,12 +4,13 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, Bolt, CheckCircle2, LoaderCircle, Wallet } from 'lucide-react';
+import { AlertCircle, CheckCircle2, LoaderCircle, Wallet } from 'lucide-react';
 import { type RecipientClaim } from '../types';
 import { formatCurrencyAmount } from '../lib/currency';
 import { getApiErrorMessage } from '../lib/apiClient';
 import { sessionsApi } from '../lib/sessionsApi';
 import { FIBER_CKB_ADDRESS_ERROR, isFiberCkbAddress } from '../lib/fiberAddress';
+import FiberPassLogo from './FiberPassLogo';
 
 interface RecipientClaimViewProps {
   token: string;
@@ -78,9 +79,10 @@ export default function RecipientClaimView({ token }: RecipientClaimViewProps) {
   return (
     <div className="min-h-screen bg-background text-on-surface flex items-center justify-center px-4 py-10">
       <main className="w-full max-w-2xl rounded-2xl border border-outline-variant bg-surface-container-low shadow-2xl overflow-hidden">
-        <header className="border-b border-outline-variant/60 bg-surface-container px-6 py-5 flex items-center gap-3">
-          <div className="h-11 w-11 rounded-xl border border-primary/30 bg-primary/10 text-primary flex items-center justify-center"><Bolt className="h-6 w-6 fill-current" /></div>
-          <div><p className="text-[10px] font-bold uppercase tracking-wider text-primary">FiberPass</p><h1 className="text-xl font-bold text-on-surface">Payment Details</h1></div>
+        <header className="flex flex-wrap items-center gap-3 border-b border-outline-variant/60 bg-surface-container px-6 py-5">
+          <FiberPassLogo />
+          <span className="hidden h-8 w-px bg-outline-variant sm:block" aria-hidden="true" />
+          <h1 className="w-full text-lg font-bold text-on-surface sm:w-auto sm:text-xl">Payment Details</h1>
         </header>
         <section className="p-6 space-y-5">
           {isLoading ? (

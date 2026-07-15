@@ -61,7 +61,6 @@ export interface AutomationRecipient {
   externalId?: string;
   invoiceEndpoint?: string;
   status: 'active' | 'disabled';
-  metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
   disabledAt?: string;
@@ -94,7 +93,6 @@ export interface AutomationInvoice {
   cancelledAt?: string;
   lastFailureCode?: string;
   lastFailureMessage?: string;
-  metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }
@@ -165,7 +163,6 @@ export interface AutomationPaymentBatch {
   cancelledAt?: string;
   lastFailureCode?: string;
   lastFailureMessage?: string;
-  metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
   invoices: AutomationInvoice[];
@@ -176,7 +173,6 @@ export interface CreateAutomationRecipientPayload {
   serviceAddress: string;
   externalId?: string;
   invoiceEndpoint?: string;
-  metadata?: Record<string, unknown>;
 }
 
 export interface CreateAutomationInvoicePayload {
@@ -190,7 +186,6 @@ export interface CreateAutomationInvoicePayload {
   idempotencyKey?: string;
   fiberInvoice?: string;
   dueAt?: string;
-  metadata?: Record<string, unknown>;
 }
 
 export interface CreateAutomationInvoiceBatchPayload {
@@ -198,7 +193,6 @@ export interface CreateAutomationInvoiceBatchPayload {
   description?: string;
   externalReference?: string;
   idempotencyKey?: string;
-  metadata?: Record<string, unknown>;
   invoices: Array<Omit<CreateAutomationInvoicePayload, 'sessionId'>>;
 }
 

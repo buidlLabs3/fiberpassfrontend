@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Bolt } from 'lucide-react';
+import { Zap } from 'lucide-react';
 
 interface FiberPassLogoProps {
   showTagline?: boolean;
@@ -15,7 +15,7 @@ export default function FiberPassLogo({ showTagline = false, className = '' }: F
   return (
     <span className={`inline-flex min-w-0 items-center gap-2.5 ${className}`}>
       <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-gradient-to-br from-primary to-secondary shadow-[0_8px_22px_rgba(0,45,111,0.13)]">
-        <Bolt className="h-[21px] w-[21px] fill-current text-on-primary" />
+        <Zap className="h-[21px] w-[21px] fill-current text-on-primary" />
       </span>
       <span className="min-w-0">
         <span className="block text-[22px] font-extrabold leading-none tracking-normal text-on-surface">
